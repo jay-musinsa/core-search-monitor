@@ -1,0 +1,26 @@
+# 웹 프레임워크 & 서버
+fastapi==0.115.12
+uvicorn==0.34.2
+
+
+# 데이터베이스 & 메시징
+redis==6.1.0
+kafka-python==2.2.10
+clickhouse-driver==0.2.9
+
+
+# 머신러닝 & 데이터 처리
+sentence-transformers==4.1.0
+numpy==2.0.2
+pandas==2.2.3
+scikit-learn==1.6.1
+
+# 개발 도구 (테스트 & 코드 품질)
+pytest==8.3.5
+pytest-asyncio==1.0.0
+black==25.1.0
+flake8==7.2.0
+mypy==1.15.0
+selenium
+webdriver-manager
+openai
