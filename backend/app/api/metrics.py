@@ -96,7 +96,7 @@ async def on_keyword_message(keyword: str):
     print(f"[파이프라인] 키워드 처리 시작: {keyword}")
     
     # 1단계: 무신사 검색 진행중
-    await broadcast_status(keyword, "무신사 검색 진행중", 1, 3)
+    await broadcast_status(keyword, "무신사 검색 진행중", 1, 4)
     await asyncio.sleep(0.5)  # 상태 전송 대기
     
     # 스크린샷 작업을 스레드 풀에서 실행
@@ -105,20 +105,20 @@ async def on_keyword_message(keyword: str):
     print(f"[파이프라인] 스크린샷 저장 완료: {screenshot_path}")
     
     # 2단계: 스크린샷 생성 완료
-    await broadcast_status(keyword, "스크린샷 생성 완료", 2, 3)
+    await broadcast_status(keyword, "스크린샷 생성 완료", 2, 4)
     await asyncio.sleep(0.5)  # 상태 전송 대기
     
     # 3단계: AI 평가 진행중
-    await broadcast_status(keyword, "AI 평가 진행중", 3, 3)
+    await broadcast_status(keyword, "AI 평가 진행중", 3, 4)
     await asyncio.sleep(0.5)  # 상태 전송 대기
     
     print(f"[파이프라인] GPT 평가 시작")
     # GPT 평가 작업을 스레드 풀에서 실행
-    metrics = await loop.run_in_executor(executor, gpt_evaluator.evaluate, screenshot_path)
+    metrics = await loop.run_in_executor(executor, gpt_evaluator.evaluate, screenshot_path, keyword)
     print(f"[파이프라인] GPT 평가 완료: {metrics}")
     
-    # 완료 상태 전송
-    await broadcast_status(keyword, "평가 완료", 3, 3)
+    # 4단계: 완료 상태 전송
+    await broadcast_status(keyword, "평가 완료", 4, 4)
     await asyncio.sleep(0.5)  # 상태 전송 대기
     
     # 메트릭 업데이트

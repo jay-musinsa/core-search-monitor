@@ -26,9 +26,9 @@ class GPTMetricEvaluator:
             print(f"[GPT] 이미지 인코딩 실패: {e}")
             return None
 
-    def evaluate(self, screenshot_path: str) -> Dict[str, float]:
+    def evaluate(self, screenshot_path: str, keyword: str = None) -> Dict[str, float]:
         """GPT Vision API를 사용하여 검색 결과 스크린샷 분석 및 메트릭 계산"""
-        print(f"[GPT] 평가 시작: 입력 스크린샷 경로 = {screenshot_path}")
+        print(f"[GPT] 평가 시작: 키워드 = {keyword}, 스크린샷 경로 = {screenshot_path}")
         # 실제 파일 경로로 변환
         if screenshot_path and screenshot_path.startswith("/screenshot/"):
             abs_path = os.path.join(os.path.dirname(__file__), "..", screenshot_path.lstrip("/"))
@@ -83,8 +83,10 @@ class GPTMetricEvaluator:
                         "content": [
                             {
                                 "type": "text",
-                                "text": """
+                                "text": f"""
 You are an e-commerce search quality evaluator. Please analyze this Musinsa (Korean fashion e-commerce) search results screenshot and calculate search quality metrics.
+
+Search keyword: "{keyword if keyword else 'Unknown'}"
 
 Please evaluate based on these criteria:
 1. NDCG@10: Relevance ranking of top 10 results (0.0-1.0)
@@ -92,20 +94,21 @@ Please evaluate based on these criteria:
 3. Recall: Ratio of retrieved relevant results from all relevant items (0.0-1.0)
 
 Evaluation criteria:
-- Relevance between search keywords and products
-- Product image quality
+- Relevance between search keyword "{keyword if keyword else 'Unknown'}" and displayed products
+- Product image quality and appropriateness for the search term
 - Price information appropriateness
 - Brand information accuracy
+- How well the search results match what users would expect when searching for "{keyword if keyword else 'Unknown'}"
 
 Please respond ONLY in the following JSON format:
-{
+{{
   "ndcg@10": 0.75,
   "precision": 0.82,
   "recall": 0.68,
-  "ndcg_reason": "8 out of top 10 results show high relevance to search keywords and are appropriately ranked.",
-  "precision_reason": "8 out of 10 total results are relevant to the search keywords, showing high precision.",
-  "recall_reason": "Most relevant products were retrieved, but some popular brands or specific styles are missing."
-}
+  "ndcg_reason": "8 out of top 10 results show high relevance to search keyword '{keyword if keyword else 'Unknown'}' and are appropriately ranked.",
+  "precision_reason": "8 out of 10 total results are relevant to the search keyword '{keyword if keyword else 'Unknown'}', showing high precision.",
+  "recall_reason": "Most relevant products for '{keyword if keyword else 'Unknown'}' were retrieved, but some popular brands or specific styles are missing."
+}}
 
 This is for academic research purposes to improve e-commerce search quality. Please provide the evaluation in the exact JSON format above.
 
