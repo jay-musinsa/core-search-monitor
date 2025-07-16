@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     // 최초 데이터 fetch
     getMetrics().then((res) => {
-      setMetrics(res.data);
+      setMetrics(prev => ({ ...prev, ...res.data }));
       setTimestamp(res.timestamp);
     });
     
@@ -44,8 +44,8 @@ function App() {
         });
       } else {
         console.log("메트릭 업데이트:", data);
-        // 메트릭 업데이트 처리
-        setMetrics(data.metrics);
+        // 메트릭 업데이트 처리 (append 방식)
+        setMetrics(prev => ({ ...prev, ...data.metrics }));
         setTimestamp(data.timestamp);
         // 완료된 키워드의 상태 제거
         if (data.metrics) {
@@ -82,7 +82,7 @@ function App() {
 
   return (
     <div style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h1>무신사 키워드 검색품질지표 깨부시자</h1>
+      <h1>무신사/29CM 키워드 검색품질지표 깨부시자</h1>
       <form onSubmit={handleSubmit} style={{ marginBottom: 20 }}>
         <input
           type="text"
