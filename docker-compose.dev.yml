@@ -32,12 +32,10 @@ services:
 
   # ClickHouse
   clickhouse:
-    image: clickhouse/clickhouse-server:23.8
+    image: clickhouse/clickhouse-server:latest
     ports:
       - "8123:8123"
       - "9000:9000"
-    volumes:
-      - ./infrastructure/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
     environment:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
 

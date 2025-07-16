@@ -8,18 +8,8 @@ import os
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
 from app.core.metrics import metrics_manager
-from app.core.crawler import CrawlerMusinsa, Crawler29CM
-from app.core.gpt import GPTMetricEvaluator
 
 router = APIRouter()
-
-# 크롤러 인스턴스 생성
-crawler_musinsa = CrawlerMusinsa()
-crawler_29cm = Crawler29CM()
-gpt_evaluator = GPTMetricEvaluator()
-
-# 스레드 풀 생성
-executor = ThreadPoolExecutor(max_workers=2)
 
 # WebSocket 연결 관리
 websocket_connections: List[WebSocket] = []
@@ -36,8 +26,8 @@ async def broadcast_update():
         return
     
     message = {
-        "metrics": metrics_manager.get_metrics(),
-        "timestamp": metrics_manager.get_last_updated()
+        "metrics": {},  # 메트릭 저장하지 않으므로 빈 객체
+        "timestamp": datetime.now().isoformat()
     }
     
     # 연결이 끊긴 WebSocket 제거
@@ -92,117 +82,143 @@ async def broadcast_status(keyword: str, status: str, step: int, total_steps: in
     await asyncio.sleep(0)
     print(f"[상태 브로드캐스트] 상태 브로드캐스트 완료: {keyword}")
 
+# 개별 메트릭 업데이트 브로드캐스트
+async def broadcast_individual_metric_update(keyword: str, metrics: dict):
+    print(f"[개별 메트릭 업데이트] {keyword}")
+    print(f"[개별 메트릭 업데이트] 전송할 데이터: {metrics}")
+    if not websocket_connections:
+        print("[개별 메트릭 업데이트] 연결된 WebSocket이 없습니다.")
+        return
+    
+    message = {
+        "type": "metric_update",
+        "keyword": keyword,
+        "metrics": metrics,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    print(f"[개별 메트릭 업데이트] 전송할 메시지: {message}")
+    
+    # 연결이 끊긴 WebSocket 제거
+    disconnected = []
+    for i, ws in enumerate(websocket_connections):
+        try:
+            await ws.send_json(message)
+            print(f"[개별 메트릭 업데이트] WebSocket {i}에 메트릭 메시지 전송 완료")
+            await asyncio.sleep(0)
+        except Exception as e:
+            print(f"[개별 메트릭 업데이트] WebSocket {i} 전송 실패: {e}")
+            disconnected.append(ws)
+    
+    for ws in disconnected:
+        websocket_connections.remove(ws)
+    
+    await asyncio.sleep(0)
+    print(f"[개별 메트릭 업데이트] 메트릭 업데이트 완료: {keyword}")
+
 # 키워드 입력 시 호출될 파이프라인
 async def on_keyword_message(keyword: str):
     print(f"[파이프라인] 키워드 처리 시작: {keyword}")
 
-    # 1단계: 무신사/29cm 검색 진행중
-    await broadcast_status(keyword, "무신사/29cm 검색 진행중", 1, 4)
-    await asyncio.sleep(0.5)
+    try:
+        # 1단계: API 데이터 수집 및 스크린샷 캡처 진행중
+        await broadcast_status(keyword, "API 데이터 수집 및 스크린샷 캡처 진행중", 1, 3)
+        await asyncio.sleep(0.5)
 
-    loop = asyncio.get_event_loop()
+        # 새로운 메트릭 서비스로 키워드 처리
+        result = await metrics_manager.process_keyword(keyword)
+        
+        if "error" in result:
+            print(f"[파이프라인] 키워드 처리 실패: {result['error']}")
+            await broadcast_status(keyword, "처리 실패", 3, 3)
+            return
 
-    # 스크린샷 생성 (각각의 디렉토리에 저장)
-    musinsa_screenshot_path = await loop.run_in_executor(
-        executor, crawler_musinsa.fetch_and_screenshot, keyword
-    )
-    _29cm_screenshot_path = await loop.run_in_executor(
-        executor, crawler_29cm.fetch_and_screenshot, keyword
-    )
-    print(f"[파이프라인] 스크린샷 저장 완료: {musinsa_screenshot_path}, {_29cm_screenshot_path}")
+        # 2단계: 데이터 처리 완료
+        await broadcast_status(keyword, "데이터 처리 완료", 2, 3)
+        await asyncio.sleep(0.5)
 
-    # 2단계: 스크린샷 생성 완료
-    await broadcast_status(keyword, "스크린샷 생성 완료", 2, 4)
-    await asyncio.sleep(0.5)
+        # 3단계: 완료
+        await broadcast_status(keyword, "완료", 3, 3)
+        await asyncio.sleep(0.5)
 
-    # 3단계: AI 평가 진행중
-    await broadcast_status(keyword, "AI 평가 진행중", 3, 4)
-    await asyncio.sleep(0.5)
+        # 개별 메트릭 업데이트 브로드캐스트 - process_keyword 결과 직접 사용
+        await broadcast_individual_metric_update(keyword, result)
 
-    print(f"[파이프라인] GPT 평가 시작")
-    musinsa_metrics = await loop.run_in_executor(
-        executor, gpt_evaluator.evaluate, musinsa_screenshot_path, keyword
-    )
-    _29cm_metrics = await loop.run_in_executor(
-        executor, gpt_evaluator.evaluate, _29cm_screenshot_path, keyword
-    )
+        print(f"[파이프라인] 키워드 처리 완료: {keyword}")
+        print(f"[파이프라인] 결과: {result}")
 
-    print(f"[파이프라인] GPT 평가 완료: musinsa={musinsa_metrics}, 29cm={_29cm_metrics}")
+    except Exception as e:
+        print(f"[파이프라인] 키워드 처리 중 오류: {e}")
+        await broadcast_status(keyword, "오류 발생", 3, 3)
 
-    # 4단계: 완료 상태 전송
-    await broadcast_status(keyword, "평가 완료", 4, 4)
-    await asyncio.sleep(0.5)
-
-    # 메트릭 업데이트 (크롤러별로)
-    metrics_manager.update_metrics(
-        f"musinsa_{keyword}",
-        ndcg10=musinsa_metrics["ndcg@10"],
-        precision=musinsa_metrics["precision"],
-        recall=musinsa_metrics["recall"],
-        screenshot_path=musinsa_screenshot_path,
-        ndcg_reason=musinsa_metrics.get("ndcg_reason", ""),
-        precision_reason=musinsa_metrics.get("precision_reason", ""),
-        recall_reason=musinsa_metrics.get("recall_reason", "")
-    )
-    metrics_manager.update_metrics(
-        f"29cm_{keyword}",
-        ndcg10=_29cm_metrics["ndcg@10"],
-        precision=_29cm_metrics["precision"],
-        recall=_29cm_metrics["recall"],
-        screenshot_path=_29cm_screenshot_path,
-        ndcg_reason=_29cm_metrics.get("ndcg_reason", ""),
-        precision_reason=_29cm_metrics.get("precision_reason", ""),
-        recall_reason=_29cm_metrics.get("recall_reason", "")
-    )
-    print(f"[파이프라인] 메트릭 업데이트 완료: {keyword}")
-
-    # 완료 후 최종 결과 브로드캐스트
-    await broadcast_update()
+    # broadcast_update 제거 - 메트릭 데이터가 지워지지 않도록
 
 @router.get("/api/metrics")
 async def get_metrics():
+    """모든 메트릭 조회"""
     return {
-        "status": "success",
-        "data": metrics_manager.get_metrics(),
-        "timestamp": metrics_manager.get_last_updated()
+        "metrics": {},  # 메트릭 저장하지 않으므로 빈 객체
+        "last_updated": datetime.now().isoformat()
     }
 
+@router.get("/api/metrics/summary")
+async def get_metrics_summary():
+    """메트릭 요약 정보 조회"""
+    return metrics_manager.get_metrics_summary()
+
+@router.delete("/api/metrics")
+async def clear_metrics(keyword: str = None):
+    """메트릭 초기화"""
+    metrics_manager.clear_metrics(keyword)
+    await broadcast_update()
+    return {"message": "메트릭이 초기화되었습니다."}
+
 @router.post("/api/keyword")
-async def post_keyword(req: KeywordRequest):
-    print(f"[API] 키워드 요청 수신: {req.keyword}")
-    await on_keyword_message(req.keyword)
-    return {"status": "success", "keyword": req.keyword}
+async def post_keyword(req: KeywordRequest, background_tasks: BackgroundTasks):
+    """키워드 입력 처리"""
+    print(f"[API] 키워드 입력 받음: {req.keyword}")
+    
+    # 백그라운드에서 키워드 처리
+    background_tasks.add_task(on_keyword_message, req.keyword)
+    
+    return {"message": f"키워드 '{req.keyword}' 처리가 시작되었습니다."}
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    """WebSocket 연결 처리"""
     await websocket.accept()
     websocket_connections.append(websocket)
     print(f"[WebSocket] 새 연결 추가. 총 연결 수: {len(websocket_connections)}")
     
-    # 연결 시 현재 데이터 전송
     try:
-        await websocket.send_json({
-            "metrics": metrics_manager.get_metrics(),
-            "timestamp": metrics_manager.get_last_updated()
-        })
-        print("[WebSocket] 초기 데이터 전송 완료")
-        
-        # 연결 유지
         while True:
-            await asyncio.sleep(10)  # ping 간격 늘림
+            # 클라이언트로부터 메시지 수신
+            data = await websocket.receive_text()
+            print(f"[WebSocket] 메시지 수신: {data}")
+            
+            # 키워드 메시지 처리
+            if data.startswith("keyword:"):
+                keyword = data.split(":", 1)[1].strip()
+                print(f"[WebSocket] 키워드 처리 요청: {keyword}")
+                await on_keyword_message(keyword)
             
     except Exception as e:
-        print(f"[WebSocket] 연결 에러: {e}")
+        print(f"[WebSocket] 연결 오류: {e}")
     finally:
+        # 연결 제거
         if websocket in websocket_connections:
             websocket_connections.remove(websocket)
-        print(f"[WebSocket] 연결 종료. 남은 연결 수: {len(websocket_connections)}")
+        print(f"[WebSocket] 연결 제거. 남은 연결 수: {len(websocket_connections)}")
 
-# 스크린샷 static 서빙
-screenshot_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../screenshot"))
 @router.get("/screenshot/{platform}/{filename}")
 async def get_screenshot(platform: str, filename: str):
-    file_path = os.path.join(screenshot_dir, f'{platform}/{filename}')
-    if not os.path.exists(file_path):
-        return JSONResponse(status_code=404, content={"error": "File not found"})
-    return FileResponse(file_path) 
+    """스크린샷 파일 제공"""
+    screenshot_path = os.path.join(os.path.dirname(__file__), f"../screenshot/{platform}/{filename}")
+    
+    if os.path.exists(screenshot_path):
+        return FileResponse(screenshot_path, media_type="image/png")
+    else:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "스크린샷을 찾을 수 없습니다."}
+        ) 
