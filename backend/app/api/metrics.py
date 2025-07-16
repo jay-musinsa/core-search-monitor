@@ -8,13 +8,14 @@ import os
 from typing import List
 from concurrent.futures import ThreadPoolExecutor
 from app.core.metrics import metrics_manager
-from app.core.crawler import MusinsaCrawler
+from app.core.crawler import CrawlerMusinsa, Crawler29CM
 from app.core.gpt import GPTMetricEvaluator
 
 router = APIRouter()
 
-# 크롤러, GPT 인스턴스 생성
-crawler = MusinsaCrawler()
+# 크롤러 인스턴스 생성
+crawler_musinsa = CrawlerMusinsa()
+crawler_29cm = Crawler29CM()
 gpt_evaluator = GPTMetricEvaluator()
 
 # 스레드 풀 생성
@@ -94,46 +95,67 @@ async def broadcast_status(keyword: str, status: str, step: int, total_steps: in
 # 키워드 입력 시 호출될 파이프라인
 async def on_keyword_message(keyword: str):
     print(f"[파이프라인] 키워드 처리 시작: {keyword}")
-    
-    # 1단계: 무신사 검색 진행중
-    await broadcast_status(keyword, "무신사 검색 진행중", 1, 4)
-    await asyncio.sleep(0.5)  # 상태 전송 대기
-    
-    # 스크린샷 작업을 스레드 풀에서 실행
+
+    # 1단계: 무신사/29cm 검색 진행중
+    await broadcast_status(keyword, "무신사/29cm 검색 진행중", 1, 4)
+    await asyncio.sleep(0.5)
+
     loop = asyncio.get_event_loop()
-    screenshot_path = await loop.run_in_executor(executor, crawler.fetch_and_screenshot, keyword)
-    print(f"[파이프라인] 스크린샷 저장 완료: {screenshot_path}")
-    
+
+    # 스크린샷 생성 (각각의 디렉토리에 저장)
+    musinsa_screenshot_path = await loop.run_in_executor(
+        executor, crawler_musinsa.fetch_and_screenshot, keyword
+    )
+    _29cm_screenshot_path = await loop.run_in_executor(
+        executor, crawler_29cm.fetch_and_screenshot, keyword
+    )
+    print(f"[파이프라인] 스크린샷 저장 완료: {musinsa_screenshot_path}, {_29cm_screenshot_path}")
+
     # 2단계: 스크린샷 생성 완료
     await broadcast_status(keyword, "스크린샷 생성 완료", 2, 4)
-    await asyncio.sleep(0.5)  # 상태 전송 대기
-    
+    await asyncio.sleep(0.5)
+
     # 3단계: AI 평가 진행중
     await broadcast_status(keyword, "AI 평가 진행중", 3, 4)
-    await asyncio.sleep(0.5)  # 상태 전송 대기
-    
+    await asyncio.sleep(0.5)
+
     print(f"[파이프라인] GPT 평가 시작")
-    # GPT 평가 작업을 스레드 풀에서 실행
-    metrics = await loop.run_in_executor(executor, gpt_evaluator.evaluate, screenshot_path, keyword)
-    print(f"[파이프라인] GPT 평가 완료: {metrics}")
-    
+    musinsa_metrics = await loop.run_in_executor(
+        executor, gpt_evaluator.evaluate, musinsa_screenshot_path, keyword
+    )
+    _29cm_metrics = await loop.run_in_executor(
+        executor, gpt_evaluator.evaluate, _29cm_screenshot_path, keyword
+    )
+
+    print(f"[파이프라인] GPT 평가 완료: musinsa={musinsa_metrics}, 29cm={_29cm_metrics}")
+
     # 4단계: 완료 상태 전송
     await broadcast_status(keyword, "평가 완료", 4, 4)
-    await asyncio.sleep(0.5)  # 상태 전송 대기
-    
-    # 메트릭 업데이트
+    await asyncio.sleep(0.5)
+
+    # 메트릭 업데이트 (크롤러별로)
     metrics_manager.update_metrics(
-        keyword,
-        ndcg10=metrics["ndcg@10"],
-        precision=metrics["precision"],
-        recall=metrics["recall"],
-        screenshot_path=screenshot_path,
-        ndcg_reason=metrics.get("ndcg_reason", ""),
-        precision_reason=metrics.get("precision_reason", ""),
-        recall_reason=metrics.get("recall_reason", "")
+        f"musinsa_{keyword}",
+        ndcg10=musinsa_metrics["ndcg@10"],
+        precision=musinsa_metrics["precision"],
+        recall=musinsa_metrics["recall"],
+        screenshot_path=musinsa_screenshot_path,
+        ndcg_reason=musinsa_metrics.get("ndcg_reason", ""),
+        precision_reason=musinsa_metrics.get("precision_reason", ""),
+        recall_reason=musinsa_metrics.get("recall_reason", "")
+    )
+    metrics_manager.update_metrics(
+        f"29cm_{keyword}",
+        ndcg10=_29cm_metrics["ndcg@10"],
+        precision=_29cm_metrics["precision"],
+        recall=_29cm_metrics["recall"],
+        screenshot_path=_29cm_screenshot_path,
+        ndcg_reason=_29cm_metrics.get("ndcg_reason", ""),
+        precision_reason=_29cm_metrics.get("precision_reason", ""),
+        recall_reason=_29cm_metrics.get("recall_reason", "")
     )
     print(f"[파이프라인] 메트릭 업데이트 완료: {keyword}")
-    
+
     # 완료 후 최종 결과 브로드캐스트
     await broadcast_update()
 
@@ -178,9 +200,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
 # 스크린샷 static 서빙
 screenshot_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../screenshot"))
-@router.get("/screenshot/{filename}")
-async def get_screenshot(filename: str):
-    file_path = os.path.join(screenshot_dir, filename)
+@router.get("/screenshot/{platform}/{filename}")
+async def get_screenshot(platform: str, filename: str):
+    file_path = os.path.join(screenshot_dir, f'{platform}/{filename}')
     if not os.path.exists(file_path):
         return JSONResponse(status_code=404, content={"error": "File not found"})
     return FileResponse(file_path) 

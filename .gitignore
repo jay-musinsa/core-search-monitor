@@ -38,3 +38,6 @@ coverage/
 
 # Docker
 .docker/
+
+# screenshot
+backend/app/screenshot/
