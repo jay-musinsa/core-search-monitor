@@ -10,10 +10,12 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
   if (!metrics || Object.keys(metrics).length === 0) {
     return (
       <div className="no-data">
-        <div className="no-data-icon">📊</div>
-        <div className="no-data-text">검색 결과가 없습니다</div>
-        <div className="no-data-subtext">
-          키워드를 입력하여 검색을 시작하세요
+        <div className="no-data-content">
+          <div className="no-data-icon">📊</div>
+          <div className="no-data-text">검색 결과가 없습니다</div>
+          <div className="no-data-subtext">
+            키워드를 입력하여 검색을 시작하세요
+          </div>
         </div>
       </div>
     );
@@ -43,6 +45,26 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
     setSelectedAnalysis(null);
   };
 
+  const getPlatformBadge = (platform) => {
+    const platformMap = {
+      musinsa: { label: "무신사", color: "#000" },
+      "29cm": { label: "29CM", color: "#ff6b6b" },
+    };
+    const platformInfo = platformMap[platform] || {
+      label: platform,
+      color: "#6c757d",
+    };
+
+    return (
+      <span
+        className="platform-badge"
+        style={{ backgroundColor: platformInfo.color }}
+      >
+        {platformInfo.label}
+      </span>
+    );
+  };
+
   return (
     <>
       <div className="metrics-container">
@@ -50,13 +72,13 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
           <table className="metrics-table">
             <thead>
               <tr>
-                <th className="th-keyword">키워드</th>
-                <th className="th-platform">플랫폼</th>
-                <th className="th-metric">NDCG@10</th>
-                <th className="th-metric">Precision</th>
-                <th className="th-metric">Recall</th>
-                <th className="th-screenshot">스크린샷</th>
-                <th className="th-analysis">분석</th>
+                <th>키워드</th>
+                <th>플랫폼</th>
+                <th>NDCG@10</th>
+                <th>Precision</th>
+                <th>Recall</th>
+                <th>스크린샷</th>
+                <th>상세 분석</th>
               </tr>
             </thead>
             <tbody>
@@ -67,11 +89,11 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                 ].map(([platformKey, m]) =>
                   m ? (
                     <tr key={keyword + platformKey} className="metric-row">
-                      <td className="td-keyword">{keyword}</td>
-                      <td className="td-platform">
-                        {platformKey === "musinsa" ? "무신사" : "29CM"}
+                      <td className="keyword-cell">{keyword}</td>
+                      <td className="platform-cell">
+                        {getPlatformBadge(platformKey)}
                       </td>
-                      <td className="td-metric">
+                      <td className="metric-cell">
                         <div className="metric-score">
                           <span
                             className={`score-value ${getScoreColor(
@@ -92,7 +114,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                           <div className="metric-reason">{m.ndcg_reason}</div>
                         )}
                       </td>
-                      <td className="td-metric">
+                      <td className="metric-cell">
                         <div className="metric-score">
                           <span
                             className={`score-value ${getScoreColor(
@@ -115,7 +137,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                           </div>
                         )}
                       </td>
-                      <td className="td-metric">
+                      <td className="metric-cell">
                         <div className="metric-score">
                           <span
                             className={`score-value ${getScoreColor(
@@ -136,7 +158,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                           <div className="metric-reason">{m.recall_reason}</div>
                         )}
                       </td>
-                      <td className="td-screenshot">
+                      <td className="screenshot-cell">
                         {m.screenshot ? (
                           <div
                             className="screenshot-container"
@@ -174,7 +196,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                           </div>
                         )}
                       </td>
-                      <td className="td-analysis">
+                      <td className="analysis-cell">
                         <button
                           className="analysis-btn"
                           onClick={() =>
@@ -182,7 +204,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                           }
                           title="상세 분석 보기"
                         >
-                          📊 자세히 보기
+                          자세히 보기
                         </button>
                       </td>
                     </tr>

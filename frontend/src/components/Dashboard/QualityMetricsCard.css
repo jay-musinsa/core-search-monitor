@@ -1,0 +1,238 @@
+/* 품질 메트릭 카드 스타일 */
+.quality-metrics-card {
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.quality-metrics-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+/* 등급별 카드 스타일 */
+.quality-metrics-card.excellent {
+  border-left: 4px solid #4CAF50;
+}
+
+.quality-metrics-card.good {
+  border-left: 4px solid #8BC34A;
+}
+
+.quality-metrics-card.average {
+  border-left: 4px solid #FF9800;
+}
+
+.quality-metrics-card.below-average {
+  border-left: 4px solid #FF5722;
+}
+
+.quality-metrics-card.poor {
+  border-left: 4px solid #F44336;
+}
+
+.quality-metrics-card.neutral {
+  border-left: 4px solid #2196F3;
+}
+
+/* 카드 헤더 */
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.card-title-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-icon {
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.card-title {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6c757d;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.trend-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.05);
+}
+
+.trend-icon {
+  font-size: 1rem;
+}
+
+.trend-text {
+  font-size: 0.8rem;
+}
+
+/* 카드 콘텐츠 */
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #212529;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.5rem;
+}
+
+/* 카드 푸터 */
+.card-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.score-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.score-bar {
+  flex: 1;
+  height: 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  transition: width 0.8s ease;
+  border-radius: 3px;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #666;
+  min-width: 35px;
+  text-align: right;
+}
+
+.trend-description {
+  font-size: 0.8rem;
+  color: #999;
+  text-align: center;
+  font-style: italic;
+}
+
+/* 카드 상세 정보 */
+.card-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.detail-label {
+  color: #666;
+  font-weight: 500;
+}
+
+.detail-value {
+  color: #333;
+  font-weight: 600;
+}
+
+.detail-value.best-score {
+  color: #4CAF50;
+  font-weight: 700;
+}
+
+/* 애니메이션 효과 */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.quality-metrics-card.excellent .main-value {
+  animation: pulse 2s infinite;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .quality-metrics-card {
+    padding: 10px;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .trend-indicator {
+    align-self: flex-end;
+  }
+  
+  .main-value {
+    font-size: 1.8rem;
+  }
+  
+  .card-title {
+    font-size: 0.7rem;
+  }
+  
+  .metric-value {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .quality-metrics-card {
+    padding: 8px;
+  }
+  
+  .main-value {
+    font-size: 1.6rem;
+  }
+  
+  .detail-row {
+    font-size: 0.75rem;
+  }
+  
+  .metric-value {
+    font-size: 1.125rem;
+  }
+}

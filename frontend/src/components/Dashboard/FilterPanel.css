@@ -1,0 +1,123 @@
+/* 필터 패널 스타일 */
+.filter-panel {
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+  padding: 12px;
+  height: fit-content;
+}
+
+.filter-header {
+  border-bottom: 1px solid #e9ecef;
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+
+.filter-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #212529;
+  margin: 0;
+}
+
+.filter-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.filter-select {
+  padding: 6px 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  color: #495057;
+  background: white;
+  cursor: pointer;
+  width: 100%;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+
+.threshold-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.threshold-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: #e9ecef;
+  border-radius: 2px;
+  outline: none;
+}
+
+.threshold-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #1976d2;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.threshold-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: #1976d2;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+.threshold-value {
+  font-size: 0.8rem;
+  color: #495057;
+  font-weight: 500;
+  min-width: 28px;
+  text-align: center;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .filter-panel {
+    padding: 12px;
+  }
+  
+  .filter-sections {
+    gap: 12px;
+  }
+  
+  .filter-section {
+    gap: 4px;
+  }
+  
+  .filter-label {
+    font-size: 0.75rem;
+  }
+  
+  .filter-select {
+    font-size: 0.75rem;
+    padding: 5px 6px;
+  }
+}

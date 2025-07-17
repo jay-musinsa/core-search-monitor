@@ -2,7 +2,26 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(docker-compose:*)",
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(chmod:*)",
+      "Bash(make:*)",
+      "Bash(pytest:*)",
+      "Bash(docker ps:*)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestRedisIntegration::test_redis_connection -v)",
+      "Bash(redis-cli:*)",
+      "Bash(docker exec:*)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestWebDriverIntegration::test_chrome_options_configuration -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestAPIServiceIntegration::test_musinsa_api_service -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestWebDriverIntegration -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestAPIServiceIntegration -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestGPTServiceIntegration -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py::TestGPTServiceIntegration::test_gpt_evaluation_with_mock -v -s)",
+      "Bash(CLICKHOUSE_HOST=localhost CLICKHOUSE_PORT=8124 REDIS_URL=redis://localhost:6380/0 ENVIRONMENT=test pytest tests/integration/test_external_services.py -v --tb=short)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)"
     ]
   },
   "enableAllProjectMcpServers": false

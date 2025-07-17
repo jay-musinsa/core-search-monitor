@@ -1,22 +1,21 @@
-/* ScreenshotModal 스타일 - 무신사 디자인 적용 */
+/* 스크린샷 모달 스타일 */
 .modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.8);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  backdrop-filter: blur(4px);
 }
 
 .modal-container {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   max-width: 95vw;
   max-height: 95vh;
   width: 90vw;
@@ -30,10 +29,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 12px 12px 0 0;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e9ecef;
+  background: #f8f9fa;
 }
 
 .modal-title {
@@ -41,20 +39,21 @@
   align-items: center;
   gap: 12px;
   font-weight: 600;
+  color: #212529;
 }
 
 .modal-platform {
-  background: #3b82f6;
+  background: #1976d2;
   color: white;
   padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
+  border-radius: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
 }
 
 .modal-keyword {
-  color: #1f2937;
-  font-size: 16px;
+  color: #212529;
+  font-size: 1rem;
 }
 
 .modal-controls {
@@ -65,10 +64,10 @@
 
 .control-btn {
   background: white;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
   padding: 8px 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -79,8 +78,8 @@
 }
 
 .control-btn:hover:not(:disabled) {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  background: #f8f9fa;
+  border-color: #adb5bd;
 }
 
 .control-btn:disabled {
@@ -89,41 +88,39 @@
 }
 
 .control-btn.primary {
-  background: #3b82f6;
+  background: #1976d2;
   color: white;
-  border-color: #3b82f6;
+  border-color: #1976d2;
 }
 
 .control-btn.primary:hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #1565c0;
+  border-color: #1565c0;
 }
 
 .modal-close {
-  background: #ef4444;
-  color: white;
+  background: none;
   border: none;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 18px;
-  font-weight: bold;
+  font-size: 1.5rem;
   cursor: pointer;
-  transition: background 0.2s;
-  min-width: 36px;
+  color: #6c757d;
+  padding: 0;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .modal-close:hover {
-  background: #dc2626;
+  color: #495057;
 }
 
 .modal-content {
   flex: 1;
   overflow: hidden;
   position: relative;
-  background: #f8fafc;
+  background: #f8f9fa;
 }
 
 .screenshot-viewer {
@@ -154,16 +151,16 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #6b7280;
-  font-size: 14px;
+  color: #6c757d;
+  font-size: 0.875rem;
   gap: 12px;
 }
 
 .loading-spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top: 3px solid #3b82f6;
+  border: 3px solid #e9ecef;
+  border-top: 3px solid #1976d2;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -178,20 +175,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 24px;
-  border-top: 1px solid #e5e7eb;
-  background: #f9fafb;
-  border-radius: 0 0 12px 12px;
+  border-top: 1px solid #e9ecef;
+  background: #f8f9fa;
 }
 
 .zoom-info {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .zoom-level {
-  background: #3b82f6;
+  background: #1976d2;
   color: white;
   padding: 4px 8px;
   border-radius: 4px;
@@ -201,7 +197,7 @@
 }
 
 .drag-hint {
-  color: #6b7280;
+  color: #6c757d;
   font-style: italic;
 }
 
@@ -212,33 +208,33 @@
 
 .action-btn {
   padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 4px;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  border: 1px solid #d1d5db;
+  border: 1px solid #dee2e6;
 }
 
 .action-btn.secondary {
   background: white;
-  color: #374151;
+  color: #495057;
 }
 
 .action-btn.secondary:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  background: #f8f9fa;
+  border-color: #adb5bd;
 }
 
 .action-btn:not(.secondary) {
-  background: #3b82f6;
+  background: #1976d2;
   color: white;
-  border-color: #3b82f6;
+  border-color: #1976d2;
 }
 
 .action-btn:not(.secondary):hover {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: #1565c0;
+  border-color: #1565c0;
 }
 
 /* 반응형 디자인 */
@@ -250,7 +246,7 @@
   }
   
   .modal-header {
-    padding: 12px 16px;
+    padding: 16px;
   }
   
   .modal-controls {
@@ -260,11 +256,11 @@
   .control-btn {
     padding: 6px 8px;
     min-width: 32px;
-    font-size: 12px;
+    font-size: 0.8rem;
   }
   
   .modal-footer {
-    padding: 12px 16px;
+    padding: 16px;
     flex-direction: column;
     gap: 12px;
   }
