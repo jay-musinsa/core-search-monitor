@@ -98,6 +98,9 @@
   justify-content: center;
   gap: 8px;
   min-height: 40px;
+  width: 120px;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .search-button:hover:not(:disabled) {

@@ -152,7 +152,7 @@ function KeywordSearch() {
             {loading ? (
               <>
                 <span className="loading-spinner"></span>
-                처리 중...
+                처리중
               </>
             ) : (
               "검색"
