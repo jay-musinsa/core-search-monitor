@@ -13,9 +13,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 라우터 등록 (추후 api/metrics.py 등에서 import)
+# 라우터 등록
 from app.api.metrics import router as metrics_router
+from app.api.quality_dashboard import router as quality_router
+
 app.include_router(metrics_router)
+app.include_router(quality_router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

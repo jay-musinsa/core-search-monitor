@@ -1,0 +1,38 @@
+FROM python:3.11-slim
+
+# 시스템 패키지 설치
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 작업 디렉토리 설정
+WORKDIR /app
+
+# Python 의존성 복사 및 설치
+COPY requirements.txt .
+COPY requirements-test.txt .
+
+# pip 업그레이드 및 의존성 설치
+RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
+    pip install -r requirements-test.txt
+
+# 애플리케이션 코드 복사
+COPY . .
+
+# 환경 변수 설정
+ENV PYTHONPATH=/app
+ENV ENVIRONMENT=test
+
+# 포트 노출
+EXPOSE 8000
+
+# 헬스체크
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/api/quality/health || exit 1
+
+# 기본 명령어 (docker-compose에서 오버라이드됨)
+CMD ["python", "-m", "pytest", "tests/integration/", "-v"]

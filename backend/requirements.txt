@@ -9,6 +9,10 @@ requests==2.32.3
 redis==6.1.0
 kafka-python==2.2.10
 clickhouse-driver==0.2.9
+clickhouse-connect==0.6.23
+asyncpg==0.29.0
+celery==5.4.0
+flower==2.0.1
 
 
 # 머신러닝 & 데이터 처리
