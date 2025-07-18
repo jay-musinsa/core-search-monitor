@@ -1,5 +1,8 @@
 import React, { useEffect, useState, useRef } from "react";
-import "./ScreenshotModal.css";
+import { Modal, Button, Space, Typography, Spin } from "antd";
+import { ZoomInOutlined, ZoomOutOutlined, ExpandOutlined, ReloadOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
 
 export default function ScreenshotModal({ screenshot, onClose }) {
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -26,11 +29,6 @@ export default function ScreenshotModal({ screenshot, onClose }) {
     };
   }, [onClose]);
 
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
 
   const handleImageLoad = () => {
     setImageLoaded(true);
@@ -123,109 +121,99 @@ export default function ScreenshotModal({ screenshot, onClose }) {
   };
 
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
-      <div className="modal-container">
-        <div className="modal-header">
-          <div className="modal-title">
-            <span className="modal-platform">{screenshot.platform}</span>
-            <span className="modal-keyword">{screenshot.keyword}</span>
+    <Modal
+      open={true}
+      onCancel={onClose}
+      footer={null}
+      width="90vw"
+      style={{ top: 20 }}
+      title={
+        <div className="flex justify-between items-center">
+          <div>
+            <Text strong>{screenshot.platform}</Text>
+            <Text className="ml-2 text-gray-600">{screenshot.keyword}</Text>
           </div>
-          <div className="modal-controls">
-            <button
-              className="control-btn"
+          <Space>
+            <Button
+              icon={<ZoomOutOutlined />}
               onClick={handleZoomOut}
               disabled={zoomLevel <= 0.5}
               title="축소"
-            >
-              −
-            </button>
-            <button
-              className="control-btn"
+            />
+            <Button
+              icon={<ReloadOutlined />}
               onClick={handleResetZoom}
               title="원본 크기"
-            >
-              ⌂
-            </button>
-            <button
-              className="control-btn"
+            />
+            <Button
+              icon={<ZoomInOutlined />}
               onClick={handleZoomIn}
               disabled={zoomLevel >= 3}
               title="확대"
-            >
-              +
-            </button>
-            <button
-              className="control-btn primary"
+            />
+            <Button
+              icon={<ExpandOutlined />}
               onClick={handleFullScreen}
               title="새 탭에서 열기"
-            >
-              ↗
-            </button>
-            <button className="modal-close" onClick={onClose} title="닫기">
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div className="modal-content">
-          <div
-            ref={containerRef}
-            className="screenshot-viewer"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onWheel={handleWheel}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {!imageLoaded && (
-              <div className="loading-placeholder">
-                <div className="loading-spinner"></div>
-                <div>이미지 로딩 중...</div>
-              </div>
-            )}
-
-            <img
-              ref={imageRef}
-              src={screenshot.url}
-              alt={`${screenshot.keyword} 스크린샷`}
-              className={`screenshot-image ${isDragging ? "dragging" : ""}`}
-              onLoad={handleImageLoad}
-              onError={handleImageError}
-              onMouseDown={handleMouseDown}
-              style={{
-                display: imageLoaded ? "block" : "none",
-                cursor:
-                  zoomLevel > 1
-                    ? isDragging
-                      ? "grabbing"
-                      : "grab"
-                    : "default",
-                transform: `scale(${zoomLevel}) translate(${imagePosition.x}px, ${imagePosition.y}px)`,
-                transformOrigin: "center center",
-              }}
             />
-          </div>
+          </Space>
         </div>
+      }
+      destroyOnClose
+    >
+      <div className="relative">
+        <div
+          ref={containerRef}
+          className="overflow-hidden border border-gray-200 rounded-lg"
+          style={{ height: "70vh" }}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onWheel={handleWheel}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {!imageLoaded && (
+            <div className="flex flex-col items-center justify-center h-full">
+              <Spin size="large" className="mb-4" />
+              <Text>이미지 로딩 중...</Text>
+            </div>
+          )}
 
-        <div className="modal-footer">
-          <div className="zoom-info">
-            <span className="zoom-level">{Math.round(zoomLevel * 100)}%</span>
+          <img
+            ref={imageRef}
+            src={screenshot.url}
+            alt={`${screenshot.keyword} 스크린샷`}
+            className={`max-w-full max-h-full object-contain ${isDragging ? "cursor-grabbing" : "cursor-grab"}`}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            onMouseDown={handleMouseDown}
+            style={{
+              display: imageLoaded ? "block" : "none",
+              transform: `scale(${zoomLevel}) translate(${imagePosition.x}px, ${imagePosition.y}px)`,
+              transformOrigin: "center center",
+            }}
+          />
+        </div>
+        
+        <div className="mt-4 flex justify-between items-center">
+          <div>
+            <Text strong>{Math.round(zoomLevel * 100)}%</Text>
             {zoomLevel > 1 && (
-              <span className="drag-hint">드래그하여 이동</span>
+              <Text className="ml-2 text-gray-600">드래그하여 이동</Text>
             )}
           </div>
-          <div className="modal-actions">
-            <button className="action-btn secondary" onClick={handleFullScreen}>
+          <Space>
+            <Button onClick={handleFullScreen}>
               새 탭에서 열기
-            </button>
-            <button className="action-btn" onClick={onClose}>
+            </Button>
+            <Button onClick={onClose}>
               닫기
-            </button>
-          </div>
+            </Button>
+          </Space>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

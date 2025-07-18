@@ -1,5 +1,5 @@
 import React from "react";
-import "./QualityMetricsCard.css";
+import { Card, Statistic } from "antd";
 
 const QualityMetricsCard = ({ title, value, format, color }) => {
   const formatValue = (value, format) => {
@@ -14,16 +14,13 @@ const QualityMetricsCard = ({ title, value, format, color }) => {
   };
 
   return (
-    <div className="quality-metrics-card">
-      <div className="card-header">
-        <h3 className="card-title">{title}</h3>
-      </div>
-      <div className="card-content">
-        <div className="metric-value" style={{ color }}>
-          {formatValue(value, format)}
-        </div>
-      </div>
-    </div>
+    <Card>
+      <Statistic
+        title={title}
+        value={formatValue(value, format)}
+        valueStyle={{ color }}
+      />
+    </Card>
   );
 };
 

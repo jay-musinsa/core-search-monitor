@@ -1,12 +1,25 @@
 import React, { useEffect, useState } from "react";
 import {
+  Input,
+  Button,
+  Card,
+  Typography,
+  Space,
+  Alert,
+  Progress,
+  Breadcrumb,
+  Divider,
+} from "antd";
+import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
   getMetrics,
   subscribeMetrics,
   postKeyword,
 } from "../services/metricsApi";
 import MetricsTable from "./MetricsTable";
 import ScreenshotModal from "./ScreenshotModal";
-import "./KeywordSearch.css";
+
+const { Title, Text } = Typography;
 
 function KeywordSearch() {
   const [metrics, setMetrics] = useState({});
@@ -113,104 +126,134 @@ function KeywordSearch() {
   };
 
   return (
-    <div className="admin-page">
+    <div className="p-8 bg-white min-h-[calc(100vh-52px)] max-w-[1200px] mx-auto">
       {/* Breadcrumb */}
-      <nav className="breadcrumb">
-        <span className="breadcrumb-item">검색품질 모니터링</span>
-        <span className="breadcrumb-separator">&gt;</span>
-        <span className="breadcrumb-item active">키워드 검색</span>
-      </nav>
+      <Breadcrumb
+        className="mb-6"
+        items={[
+          {
+            title: "검색품질 모니터링",
+          },
+          {
+            title: "키워드 검색",
+          },
+        ]}
+      />
 
       {/* 페이지 제목 */}
-      <h1 className="page-title">Keyword Search</h1>
+      <Title level={1} className="typo-heading-1 mb-8">
+        Keyword Search
+      </Title>
 
-      {/* 섹션 제목 */}
-      <h2 className="section-title">검색 테스트</h2>
-
-      {/* 검색 폼 */}
-      <div className="search-section">
-        <div className="search-form">
-          <input
-            type="text"
+      {/* 검색 섹션 */}
+      <Card className="mb-10 shadow-md">
+        <Title level={3} className="typo-heading-3 mb-6">
+          검색 테스트
+        </Title>
+        
+        <Space.Compact className="w-full mb-4">
+          <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="키워드를 입력하세요 (예: 반팔티, 청바지, 운동화)"
-            className="search-input"
+            size="large"
             disabled={loading}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") {
-                handleSubmit(e);
-              }
-            }}
+            onPressEnter={handleSubmit}
+            className="flex-1"
           />
-          <button
-            type="submit"
-            className="search-button"
-            disabled={loading}
+          <Button
+            type="primary"
+            size="large"
+            icon={<SearchOutlined />}
+            loading={loading}
             onClick={handleSubmit}
+            disabled={!input.trim()}
+            className="px-6"
           >
-            {loading ? (
-              <>
-                <span className="loading-spinner"></span>
-                처리중
-              </>
-            ) : (
-              "검색"
-            )}
-          </button>
-        </div>
+            {loading ? "처리중" : "검색"}
+          </Button>
+        </Space.Compact>
 
-        {error && <div className="error-message">{error}</div>}
-      </div>
+        {error && (
+          <Alert
+            message={error}
+            type="error"
+            showIcon
+            className="mb-4"
+            closable
+          />
+        )}
+      </Card>
 
       {/* 진행 상황 표시 */}
       {Object.keys(statusUpdates).length > 0 && (
-        <div className="progress-section">
-          <h3 className="progress-title">진행 상황</h3>
-          <div className="progress-list">
+        <Card className="mb-10 shadow-md">
+          <Title level={3} className="typo-heading-3 mb-6">
+            진행 상황
+          </Title>
+          
+          <Space direction="vertical" className="w-full" size="large">
             {Object.entries(statusUpdates).map(([keyword, status]) => (
-              <div key={keyword} className="progress-item">
-                <div className="progress-info">
-                  <span className="progress-keyword">{keyword}</span>
-                  <span className="progress-status">{status.status}</span>
+              <div key={keyword} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex justify-between items-center mb-3">
+                  <Text strong className="text-gray-900">
+                    {keyword}
+                  </Text>
+                  <Text className="text-sm text-gray-500 italic">
+                    {status.status}
+                  </Text>
                 </div>
-                <div className="progress-bar-container">
-                  <div
-                    className={`progress-bar ${
-                      status.step === status.total_steps ? "completed" : ""
-                    }`}
-                    style={{
-                      width: `${(status.step / status.total_steps) * 100}%`,
-                    }}
-                  ></div>
-                  <span className="progress-text">
-                    {Math.round((status.step / status.total_steps) * 100)}% (
-                    {status.step}/{status.total_steps})
-                  </span>
-                </div>
+                <Progress
+                  percent={Math.round((status.step / status.total_steps) * 100)}
+                  status={status.step === status.total_steps ? "success" : "active"}
+                  showInfo={true}
+                  format={(percent) => `${percent}% (${status.step}/${status.total_steps})`}
+                  strokeColor={{
+                    '0%': '#1677ff',
+                    '100%': '#52c41a',
+                  }}
+                  className="mb-0"
+                />
               </div>
             ))}
-          </div>
-        </div>
+          </Space>
+        </Card>
       )}
 
       {/* 검색 결과 */}
-      <div className="results-section">
-        <h3 className="results-title">검색 결과</h3>
-        <div className="results-meta">
-          {Object.keys(metrics).length > 0
-            ? `${
-                Object.keys(metrics).length
-              }개의 키워드 • 최종 갱신: ${timestamp}`
-            : `최종 갱신: ${timestamp}`}
+      <Card className="mb-10 shadow-md">
+        <div className="flex justify-between items-center mb-6">
+          <Title level={3} className="typo-heading-3 mb-0">
+            검색 결과
+          </Title>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+            className="flex items-center gap-2"
+          >
+            새로고침
+          </Button>
+        </div>
+        
+        <div className="mb-4">
+          <Text className="text-sm text-gray-600">
+            {Object.keys(metrics).length > 0
+              ? `${Object.keys(metrics).length}개의 키워드 • 최종 갱신: ${timestamp}`
+              : `최종 갱신: ${timestamp}`}
+          </Text>
         </div>
 
+        <Divider className="my-4" />
+
         {Object.keys(metrics).length === 0 ? (
-          <div className="no-results">
-            <p>
-              검색된 키워드가 없습니다. 위의 검색창에서 키워드를 입력하여
-              테스트를 시작하세요.
-            </p>
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4 text-gray-300">📊</div>
+            <Title level={4} className="text-gray-500 mb-2">
+              검색 결과가 없습니다
+            </Title>
+            <Text className="text-gray-400">
+              키워드를 입력하여 검색을 시작하세요
+            </Text>
           </div>
         ) : (
           <MetricsTable
@@ -218,7 +261,7 @@ function KeywordSearch() {
             onScreenshotClick={handleScreenshotClick}
           />
         )}
-      </div>
+      </Card>
 
       {isModalOpen && selectedScreenshot && (
         <ScreenshotModal screenshot={selectedScreenshot} onClose={closeModal} />

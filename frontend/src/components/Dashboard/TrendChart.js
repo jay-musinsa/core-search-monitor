@@ -9,7 +9,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import "./TrendChart.css";
+import { Typography, Empty } from "antd";
+
+const { Title, Text } = Typography;
 
 const TrendChart = ({ data = [], dateRange = "7d", platform = "all" }) => {
   // 차트 데이터 가공
@@ -65,39 +67,36 @@ const TrendChart = ({ data = [], dateRange = "7d", platform = "all" }) => {
   // 빈 데이터 처리
   if (!chartData || chartData.length === 0) {
     return (
-      <div className="trend-chart-container">
-        <div className="chart-header">
-          <h3>품질 트렌드</h3>
-        </div>
-        <div className="no-data-message">
-          <p>📊 표시할 트렌드 데이터가 없습니다.</p>
-          <p>데이터가 수집되면 여기에 트렌드 차트가 표시됩니다.</p>
-        </div>
-      </div>
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="표시할 트렌드 데이터가 없습니다"
+      />
     );
   }
 
   return (
-    <div className="trend-chart-container">
-      <div className="chart-header">
-        <h3>품질 트렌드</h3>
-        <div className="chart-info">
-          <span>
-            기간:{" "}
-            {dateRange === "1d"
-              ? "1일"
-              : dateRange === "7d"
-              ? "7일"
-              : dateRange === "30d"
-              ? "30일"
-              : "90일"}
-          </span>
-          {platform !== "all" && <span> | 플랫폼: {platform}</span>}
+    <div>
+      <div className="mb-4">
+        <div className="flex justify-between items-center">
+          <Title level={4} className="mb-0">품질 트렌드</Title>
+          <div className="text-sm text-gray-600">
+            <Text>
+              기간:{" "}
+              {dateRange === "1d"
+                ? "1일"
+                : dateRange === "7d"
+                ? "7일"
+                : dateRange === "30d"
+                ? "30일"
+                : "90일"}
+            </Text>
+            {platform !== "all" && <Text> | 플랫폼: {platform}</Text>}
+          </div>
         </div>
       </div>
 
-      <div className="chart-wrapper">
-        <ResponsiveContainer width="100%" height={220}>
+      <div className="w-full">
+        <ResponsiveContainer width="100%" height={350}>
           <LineChart
             data={chartData}
             margin={{ top: 15, right: 20, left: 15, bottom: 5 }}

@@ -1,10 +1,34 @@
 import React, { useState, useEffect, useCallback } from "react";
-import "./KeywordQualityDashboard.css";
+import {
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Button,
+  Space,
+  Drawer,
+  Typography,
+  Breadcrumb,
+  Spin,
+  Alert,
+  Divider,
+  Empty,
+} from "antd";
+import {
+  FilterOutlined,
+  ReloadOutlined,
+  DownloadOutlined,
+  DashboardOutlined,
+  RiseOutlined,
+  ExclamationCircleOutlined,
+} from "@ant-design/icons";
 import { metricsApi } from "../../services/metricsApi";
 import QualityMetricsCard from "./QualityMetricsCard";
 import TrendChart from "./TrendChart";
 import ComparisonTable from "./ComparisonTable";
 import FilterPanel from "./FilterPanel";
+
+const { Title, Text } = Typography;
 
 const KeywordQualityDashboard = () => {
   const [qualityData, setQualityData] = useState([]);
@@ -26,7 +50,7 @@ const KeywordQualityDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedKeyword, setSelectedKeyword] = useState(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // 품질 데이터 조회
   const fetchQualityData = useCallback(async () => {
@@ -140,17 +164,17 @@ const KeywordQualityDashboard = () => {
     link.click();
   };
 
-  // 사이드바 토글 핸들러
-  const toggleSidebar = () => {
-    setSidebarCollapsed(!sidebarCollapsed);
+  // 드로어 토글 핸들러
+  const toggleDrawer = () => {
+    setDrawerOpen(!drawerOpen);
   };
 
   if (loading) {
     return (
-      <div className="admin-page">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>키워드 품질 데이터를 불러오는 중...</p>
+      <div className="p-8 bg-white min-h-[calc(100vh-52px)]">
+        <div className="flex flex-col items-center justify-center min-h-[300px]">
+          <Spin size="large" className="mb-4" />
+          <Text className="text-gray-600">키워드 품질 데이터를 불러오는 중...</Text>
         </div>
       </div>
     );
@@ -158,113 +182,185 @@ const KeywordQualityDashboard = () => {
 
   if (error) {
     return (
-      <div className="admin-page">
-        <div className="error-container">
-          <h2>오류 발생</h2>
-          <p>{error}</p>
-          <button onClick={handleRefresh} className="btn btn-primary">
-            다시 시도
-          </button>
+      <div className="p-8 bg-white min-h-[calc(100vh-52px)]">
+        <div className="flex flex-col items-center justify-center min-h-[300px]">
+          <Alert
+            message="오류 발생"
+            description={error}
+            type="error"
+            showIcon
+            action={
+              <Button
+                type="primary"
+                onClick={handleRefresh}
+                icon={<ReloadOutlined />}
+              >
+                다시 시도
+              </Button>
+            }
+            className="max-w-md"
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-page">
+    <div className="p-8 bg-white min-h-[calc(100vh-52px)]">
       {/* Breadcrumb */}
-      <nav className="breadcrumb">
-        <span className="breadcrumb-item">검색품질 모니터링</span>
-        <span className="breadcrumb-separator">&gt;</span>
-        <span className="breadcrumb-item active">품질 대시보드</span>
-      </nav>
+      <Breadcrumb
+        className="mb-6"
+        items={[
+          {
+            title: "검색품질 모니터링",
+          },
+          {
+            title: "품질 대시보드",
+          },
+        ]}
+      />
 
-      {/* 페이지 제목 */}
-      <h1 className="page-title">Quality Dashboard</h1>
-
-      {/* 액션 버튼들 */}
-      <div className="page-actions">
-        <button
-          className="sidebar-toggle-btn"
-          onClick={toggleSidebar}
-          title={sidebarCollapsed ? "필터 패널 열기" : "필터 패널 닫기"}
-        >
-          {sidebarCollapsed ? "필터 표시" : "필터 숨기기"}
-        </button>
-        <div className="action-buttons">
-          <button className="btn btn-sm" onClick={handleExport}>
-            Export CSV
-          </button>
-          <button className="btn btn-primary btn-sm" onClick={handleRefresh}>
-            새로고침
-          </button>
+      {/* 페이지 헤더 */}
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <Title level={1} className="typo-heading-1 mb-2">
+            Quality Dashboard
+          </Title>
+          <Text className="text-gray-600">
+            검색 품질 모니터링 대시보드
+          </Text>
         </div>
+        
+        <Space>
+          <Button 
+            icon={<FilterOutlined />}
+            onClick={toggleDrawer}
+          >
+            필터
+          </Button>
+          <Button 
+            icon={<DownloadOutlined />}
+            onClick={handleExport}
+          >
+            Export CSV
+          </Button>
+          <Button 
+            type="primary" 
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+          >
+            새로고침
+          </Button>
+        </Space>
       </div>
 
-      <div className="dashboard-layout">
-        {/* 사이드바 필터 패널 */}
-        <div
-          className={`dashboard-sidebar ${sidebarCollapsed ? "collapsed" : ""}`}
-        >
-          <FilterPanel
-            filters={filters}
-            onFilterChange={handleFilterChange}
-            collapsed={sidebarCollapsed}
-          />
-        </div>
-
-        {/* 메인 대시보드 콘텐츠 */}
-        <div className={`dashboard-main ${sidebarCollapsed ? "expanded" : ""}`}>
-          {/* 메트릭 카드 섹션 */}
-          <div className="metrics-section">
-            <h2 className="section-title">주요 지표</h2>
-            <div className="metrics-grid">
-              <QualityMetricsCard
+      {/* 메트릭 카드 섹션 */}
+      <div className="mb-8">
+        <Title level={3} className="typo-heading-3 mb-4">
+          주요 지표
+        </Title>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <Card>
+              <Statistic
                 title="전체 키워드"
                 value={summaryStats.totalKeywords}
-                format="integer"
-                color="#1976d2"
+                precision={0}
+                valueStyle={{ color: '#1677ff' }}
+                prefix={<DashboardOutlined />}
               />
-              <QualityMetricsCard
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <Card>
+              <Statistic
                 title="평균 NDCG 점수"
                 value={summaryStats.avgNdcgScore}
-                format="decimal"
-                color="#388e3c"
+                precision={3}
+                valueStyle={{ color: '#52c41a' }}
+                prefix={<RiseOutlined />}
               />
-              <QualityMetricsCard
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <Card>
+              <Statistic
+                title="평균 정확도"
+                value={summaryStats.avgPrecision}
+                precision={3}
+                valueStyle={{ color: '#1677ff' }}
+                prefix={<RiseOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12} md={8} lg={6}>
+            <Card>
+              <Statistic
                 title="이상치 발견"
                 value={summaryStats.anomalyCount}
-                format="integer"
-                color="#d32f2f"
+                precision={0}
+                valueStyle={{ color: '#ff4d4f' }}
+                prefix={<ExclamationCircleOutlined />}
               />
-            </div>
-          </div>
-
-          {/* 트렌드 차트 섹션 */}
-          <div className="chart-section">
-            <h2 className="section-title">품질 트렌드</h2>
-            <TrendChart
-              data={trendData}
-              dateRange={filters.dateRange}
-              platform={filters.platform}
-            />
-          </div>
-
-          {/* 키워드 테이블 섹션 */}
-          <div className="table-section">
-            <h2 className="section-title">키워드 품질 상세</h2>
-            <div className="table-meta">
-              총 {summaryStats.totalKeywords}개의 키워드
-            </div>
-            <ComparisonTable
-              data={qualityData}
-              onKeywordSelect={handleKeywordSelect}
-              getQualityGrade={getQualityGrade}
-              filters={filters}
-            />
-          </div>
-        </div>
+            </Card>
+          </Col>
+        </Row>
       </div>
+
+      {/* 트렌드 차트 섹션 */}
+      <Card className="mb-8">
+        <Title level={3} className="typo-heading-3 mb-4">
+          품질 트렌드
+        </Title>
+        {trendData && trendData.length > 0 ? (
+          <TrendChart
+            data={trendData}
+            dateRange={filters.dateRange}
+            platform={filters.platform}
+          />
+        ) : (
+          <Empty description="트렌드 데이터가 없습니다" />
+        )}
+      </Card>
+
+      {/* 키워드 테이블 섹션 */}
+      <Card>
+        <div className="flex justify-between items-center mb-4">
+          <Title level={3} className="typo-heading-3 mb-0">
+            키워드 품질 상세
+          </Title>
+        </div>
+        <div className="mb-4">
+          <Text className="text-sm text-gray-600">
+            총 {summaryStats.totalKeywords}개의 키워드
+          </Text>
+        </div>
+        <Divider className="my-4" />
+        {qualityData && qualityData.length > 0 ? (
+          <ComparisonTable
+            data={qualityData}
+            onKeywordSelect={handleKeywordSelect}
+            getQualityGrade={getQualityGrade}
+            filters={filters}
+          />
+        ) : (
+          <Empty description="키워드 데이터가 없습니다" />
+        )}
+      </Card>
+
+      {/* 필터 드로어 */}
+      <Drawer
+        title="필터 설정"
+        placement="right"
+        onClose={() => setDrawerOpen(false)}
+        open={drawerOpen}
+        width={400}
+      >
+        <FilterPanel 
+          filters={filters}
+          onFilterChange={handleFilterChange}
+        />
+      </Drawer>
     </div>
   );
 };

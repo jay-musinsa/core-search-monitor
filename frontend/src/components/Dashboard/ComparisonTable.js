@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from "react";
-import "./ComparisonTable.css";
+import React from "react";
+import { Table, Tag, Empty } from "antd";
 
 const ComparisonTable = ({
   data,
@@ -7,192 +7,112 @@ const ComparisonTable = ({
   getQualityGrade,
   filters,
 }) => {
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [sortConfig, setSortConfig] = useState({
-    key: "ndcg_score",
-    direction: "desc",
-  });
-
-  // 정렬된 데이터
-  const sortedData = useMemo(() => {
-    let sortableData = [...data];
-    if (sortConfig.key) {
-      sortableData.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-      });
-    }
-    return sortableData;
-  }, [data, sortConfig]);
-
-  // 페이지네이션
-  const totalPages = Math.ceil(sortedData.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentData = sortedData.slice(startIndex, endIndex);
-
-  // 정렬 핸들러
-  const handleSort = (key) => {
-    setSortConfig({
-      key,
-      direction:
-        sortConfig.key === key && sortConfig.direction === "asc"
-          ? "desc"
-          : "asc",
-    });
-  };
-
-  // 페이지 변경 핸들러
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  // 정렬 아이콘
-  const getSortIcon = (key) => {
-    if (sortConfig.key !== key) {
-      return "↕";
-    }
-    return sortConfig.direction === "asc" ? "↑" : "↓";
-  };
-
   // 플랫폼 뱃지
   const getPlatformBadge = (platform) => {
     const platformMap = {
-      musinsa: { label: "무신사", color: "#000" },
-      "29cm": { label: "29CM", color: "#ff6b6b" },
-      all: { label: "전체", color: "#6c757d" },
+      musinsa: { label: "무신사", color: "blue" },
+      "29cm": { label: "29CM", color: "red" },
+      all: { label: "전체", color: "default" },
     };
     const platformInfo = platformMap[platform] || {
       label: platform,
-      color: "#6c757d",
+      color: "default",
     };
 
     return (
-      <span
-        className="platform-badge"
-        style={{ backgroundColor: platformInfo.color }}
-      >
+      <Tag color={platformInfo.color}>
         {platformInfo.label}
-      </span>
+      </Tag>
     );
   };
 
   // 점수 뱃지
   const getScoreBadge = (score, type) => {
     const grade = getQualityGrade(score);
-    return <span className={`score-badge ${grade}`}>{score.toFixed(3)}</span>;
+    let color = "default";
+    if (grade === "excellent") color = "green";
+    else if (grade === "good") color = "blue";
+    else if (grade === "average") color = "orange";
+    else if (grade === "below-average") color = "red";
+    else if (grade === "poor") color = "red";
+    
+    return <Tag color={color}>{score.toFixed(3)}</Tag>;
   };
+
+  // 테이블 컬럼 정의
+  const columns = [
+    {
+      title: "키워드",
+      dataIndex: "keyword",
+      key: "keyword",
+      sorter: (a, b) => a.keyword.localeCompare(b.keyword),
+      render: (text) => <span className="font-medium">{text}</span>,
+    },
+    {
+      title: "플랫폼",
+      dataIndex: "platform",
+      key: "platform",
+      sorter: (a, b) => a.platform.localeCompare(b.platform),
+      render: (platform) => getPlatformBadge(platform),
+    },
+    {
+      title: "NDCG 점수",
+      dataIndex: "ndcg_score",
+      key: "ndcg_score",
+      sorter: (a, b) => a.ndcg_score - b.ndcg_score,
+      defaultSortOrder: "descend",
+      render: (score) => getScoreBadge(score, "ndcg"),
+    },
+    {
+      title: "정확도",
+      dataIndex: "precision",
+      key: "precision",
+      sorter: (a, b) => a.precision - b.precision,
+      render: (score) => getScoreBadge(score, "precision"),
+    },
+    {
+      title: "재현율",
+      dataIndex: "recall",
+      key: "recall",
+      sorter: (a, b) => a.recall - b.recall,
+      render: (score) => getScoreBadge(score, "recall"),
+    },
+    {
+      title: "평가일",
+      dataIndex: "assessment_date",
+      key: "assessment_date",
+      sorter: (a, b) => new Date(a.assessment_date) - new Date(b.assessment_date),
+      render: (date) => date ? new Date(date).toLocaleDateString() : "-",
+    },
+  ];
 
   if (!data || data.length === 0) {
     return (
-      <div className="no-data">
-        <div className="no-data-content">
-          <div className="no-data-icon">📊</div>
-          <div className="no-data-text">품질 데이터가 없습니다</div>
-          <div className="no-data-subtext">
-            필터 조건을 변경하거나 데이터를 수집해보세요
-          </div>
-        </div>
-      </div>
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="품질 데이터가 없습니다"
+      />
     );
   }
 
   return (
-    <div className="comparison-table">
-      <div className="table-container">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th onClick={() => handleSort("keyword")}>
-                키워드 {getSortIcon("keyword")}
-              </th>
-              <th onClick={() => handleSort("platform")}>
-                플랫폼 {getSortIcon("platform")}
-              </th>
-              <th onClick={() => handleSort("ndcg_score")}>
-                NDCG 점수 {getSortIcon("ndcg_score")}
-              </th>
-              <th onClick={() => handleSort("precision")}>
-                정확도 {getSortIcon("precision")}
-              </th>
-              <th onClick={() => handleSort("recall")}>
-                재현율 {getSortIcon("recall")}
-              </th>
-              <th onClick={() => handleSort("assessment_date")}>
-                평가일 {getSortIcon("assessment_date")}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentData.map((item, index) => (
-              <tr
-                key={item.id || index}
-                className="table-row"
-                onClick={() => onKeywordSelect && onKeywordSelect(item)}
-              >
-                <td className="keyword-cell">
-                  <span className="keyword-text">{item.keyword}</span>
-                </td>
-                <td className="platform-cell">
-                  {getPlatformBadge(item.platform)}
-                </td>
-                <td className="score-cell">
-                  {getScoreBadge(item.ndcg_score, "ndcg")}
-                </td>
-                <td className="score-cell">
-                  {getScoreBadge(item.precision, "precision")}
-                </td>
-                <td className="score-cell">
-                  {getScoreBadge(item.recall, "recall")}
-                </td>
-                <td className="date-cell">
-                  {item.assessment_date
-                    ? new Date(item.assessment_date).toLocaleDateString()
-                    : "-"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* 페이지네이션 */}
-        {totalPages > 1 && (
-          <div className="pagination">
-            <button
-              className="page-btn"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              이전
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-              <button
-                key={page}
-                className={`page-btn ${currentPage === page ? "active" : ""}`}
-                onClick={() => handlePageChange(page)}
-              >
-                {page}
-              </button>
-            ))}
-
-            <button
-              className="page-btn"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              다음
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+    <Table
+      columns={columns}
+      dataSource={data}
+      rowKey={(record) => record.id || record.keyword}
+      pagination={{
+        pageSize: 10,
+        showSizeChanger: true,
+        showQuickJumper: true,
+        showTotal: (total) => `총 ${total}개`,
+      }}
+      onRow={(record) => ({
+        onClick: () => onKeywordSelect && onKeywordSelect(record),
+        style: { cursor: "pointer" },
+      })}
+      size="middle"
+      scroll={{ x: 800 }}
+    />
   );
 };
 

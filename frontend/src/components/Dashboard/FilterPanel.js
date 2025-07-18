@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
-import "./FilterPanel.css";
+import { Select, Slider, Typography, Space, Divider } from "antd";
+
+const { Text, Title } = Typography;
+const { Option } = Select;
 
 const FilterPanel = ({ filters, onFilterChange, collapsed = false }) => {
   const [localFilters, setLocalFilters] = useState(filters);
@@ -50,77 +53,92 @@ const FilterPanel = ({ filters, onFilterChange, collapsed = false }) => {
   }
 
   return (
-    <div className="filter-panel">
-      <div className="filter-header">
-        <h3>필터</h3>
-      </div>
-
-      <div className="filter-sections">
+    <div className="p-6">
+      <Title level={4} className="mb-6">필터</Title>
+      
+      <Space direction="vertical" className="w-full" size="large">
         {/* 플랫폼 필터 */}
-        <div className="filter-section">
-          <label className="filter-label">플랫폼</label>
-          <select
+        <div>
+          <Text strong className="block mb-2">플랫폼</Text>
+          <Select
             value={localFilters.platform}
-            onChange={(e) => handleFilterChange("platform", e.target.value)}
-            className="filter-select"
+            onChange={(value) => handleFilterChange("platform", value)}
+            className="w-full"
+            placeholder="플랫폼을 선택하세요"
           >
             {filterOptions.platform.map((option) => (
-              <option key={option.value} value={option.value}>
+              <Option key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </Option>
             ))}
-          </select>
+          </Select>
         </div>
+
+        <Divider />
 
         {/* 카테고리 필터 */}
-        <div className="filter-section">
-          <label className="filter-label">카테고리</label>
-          <select
+        <div>
+          <Text strong className="block mb-2">카테고리</Text>
+          <Select
             value={localFilters.category}
-            onChange={(e) => handleFilterChange("category", e.target.value)}
-            className="filter-select"
+            onChange={(value) => handleFilterChange("category", value)}
+            className="w-full"
+            placeholder="카테고리를 선택하세요"
           >
             {filterOptions.category.map((option) => (
-              <option key={option.value} value={option.value}>
+              <Option key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </Option>
             ))}
-          </select>
+          </Select>
         </div>
+
+        <Divider />
 
         {/* 날짜 범위 필터 */}
-        <div className="filter-section">
-          <label className="filter-label">날짜 범위</label>
-          <select
+        <div>
+          <Text strong className="block mb-2">날짜 범위</Text>
+          <Select
             value={localFilters.dateRange}
-            onChange={(e) => handleFilterChange("dateRange", e.target.value)}
-            className="filter-select"
+            onChange={(value) => handleFilterChange("dateRange", value)}
+            className="w-full"
+            placeholder="날짜 범위를 선택하세요"
           >
             {filterOptions.dateRange.map((option) => (
-              <option key={option.value} value={option.value}>
+              <Option key={option.value} value={option.value}>
                 {option.label}
-              </option>
+              </Option>
             ))}
-          </select>
+          </Select>
         </div>
 
+        <Divider />
+
         {/* 품질 임계값 */}
-        <div className="filter-section">
-          <label className="filter-label">품질 임계값</label>
-          <div className="threshold-input">
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
+        <div>
+          <Text strong className="block mb-2">품질 임계값</Text>
+          <div className="px-2">
+            <Slider
+              min={0}
+              max={1}
+              step={0.1}
               value={localFilters.threshold}
-              onChange={(e) => handleThresholdChange(e.target.value)}
-              className="threshold-slider"
+              onChange={(value) => handleThresholdChange(value)}
+              tooltip={{ formatter: (value) => `${value}` }}
+              marks={{
+                0: '0',
+                0.5: '0.5',
+                1: '1'
+              }}
             />
-            <span className="threshold-value">{localFilters.threshold}</span>
+            <div className="text-center mt-2">
+              <Text className="text-sm text-gray-600">
+                현재 값: {localFilters.threshold}
+              </Text>
+            </div>
           </div>
         </div>
-      </div>
+      </Space>
     </div>
   );
 };
