@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 import logging
 import json
 import asyncio
+from app.core.metrics import metrics_manager
+import clickhouse_connect
 
 
 logger = logging.getLogger(__name__)
@@ -154,77 +156,75 @@ async def get_quality_dashboard_data(
     page: int = Query(1, ge=1, description="페이지 번호"),
     limit: int = Query(100, ge=1, le=1000, description="페이지 크기")
 ):
-    """키워드 품질 대시보드 데이터 조회"""
+    """ClickHouse 평가 이력 기반 대시보드 데이터 조회"""
     try:
-        # 가짜 데이터 생성 (필터링 적용)
-        fake_data = []
-        total_items = 50  # 전체 데이터 수
-        
-        for i in range(total_items):
-            item_platform = "musinsa" if i % 3 == 0 else "29cm"
-            item_category = "clothing" if i % 2 == 0 else "shoes"
-            item_ndcg = 0.5 + (i % 5) * 0.1  # 0.5 ~ 0.9
-            is_anomaly = i % 10 == 0
-            priority = 1 + (i % 3)
-            
-            # 필터링 적용
-            if platform != "all" and item_platform != platform:
-                continue
-            if category != "all" and item_category != category:
-                continue
-            if threshold > 0 and item_ndcg < threshold:
-                continue
-            if showAnomalies and not is_anomaly:
-                continue
-            if showHighPriority and priority > 2:
-                continue
-            
-            fake_data.append({
-                "keyword_id": i + 1,
-                "keyword": f"테스트키워드{i + 1}",
-                "category": item_category,
-                "platform": item_platform,
-                "assessment_date": (date.today() - timedelta(days=i % 7)).isoformat(),
-                "ndcg_score": item_ndcg,
-                "precision": 0.8 + (i % 4) * 0.05,
-                "recall": 0.75 + (i % 5) * 0.05,
-                "relevance_score": 0.85 + (i % 3) * 0.05,
-                "confidence_score": 0.9 + (i % 2) * 0.05,
-                "gpt_evaluation_text": f"키워드 {i + 1}에 대한 GPT 평가 텍스트",
-                "screenshot_path": f"/screenshots/keyword_{i + 1}.png",
-                "api_response_time": 100 + (i % 10) * 10,
-                "api_total_results": 50 + (i % 20) * 5,
-                "processing_time": 200 + (i % 15) * 20,
-                "error_message": "",
-                "priority": priority,
-                "is_anomaly": is_anomaly,
-                "anomaly_score": 0.1 + (i % 5) * 0.02
-            })
-        
-        # 정렬 적용
-        if sortBy == "ndcg_score":
-            fake_data.sort(key=lambda x: x["ndcg_score"], reverse=(sortDirection == "desc"))
-        elif sortBy == "precision":
-            fake_data.sort(key=lambda x: x["precision"], reverse=(sortDirection == "desc"))
-        elif sortBy == "recall":
-            fake_data.sort(key=lambda x: x["recall"], reverse=(sortDirection == "desc"))
-        elif sortBy == "keyword":
-            fake_data.sort(key=lambda x: x["keyword"], reverse=(sortDirection == "desc"))
-        
-        # 페이지네이션 적용
-        total_filtered = len(fake_data)
-        start_idx = (page - 1) * limit
-        end_idx = start_idx + limit
-        paginated_data = fake_data[start_idx:end_idx]
-        
-        # 요약 통계 계산
-        if fake_data:
+        client = clickhouse_connect.get_client(
+            host='localhost', port=8123, username='default', password=''
+        )
+        # 정렬 필드 매핑
+        sort_map = {
+            "ndcg_score": "gpt_ndcg_score",
+            "precision": "gpt_precision",
+            "recall": "gpt_recall",
+            "assessment_date": "assessment_date",
+            "keyword": "km.keyword"
+        }
+        order_by_field = sort_map.get(sortBy, "gpt_ndcg_score")
+        # 키워드 정렬인 경우 테이블 별칭 없이 처리
+        if sortBy == "keyword":
+            order_by = order_by_field
+        else:
+            order_by = f"qad.{order_by_field}"
+        order_dir = "DESC" if sortDirection == "desc" else "ASC"
+        # 필터 쿼리
+        where = ["1=1"]
+        params = {}
+        if platform != "all":
+            where.append("qad.platform = %(platform)s")
+            params['platform'] = platform
+        if threshold > 0:
+            where.append("qad.gpt_ndcg_score >= %(threshold)s")
+            params['threshold'] = threshold
+        # 날짜 필터 (dateRange)
+        if dateRange.endswith('d'):
+            days = int(dateRange[:-1])
+            where.append("qad.assessment_date >= today() - %(days)s")
+            params['days'] = days
+        # 쿼리 조립
+        where_clause = " AND ".join(where)
+        query = f'''
+            SELECT
+                qad.id,
+                qad.keyword_id,
+                km.keyword,
+                qad.platform,
+                qad.assessment_date,
+                qad.gpt_ndcg_score,
+                qad.gpt_precision,
+                qad.gpt_recall,
+                qad.screenshot_path,
+                qad.api_total_results,
+                qad.processing_time
+            FROM quality_assessment_daily qad
+            LEFT JOIN keyword_master km ON qad.keyword_id = km.id
+            WHERE {where_clause}
+            ORDER BY {order_by} {order_dir}
+            LIMIT %(limit)s OFFSET %(offset)s
+        '''
+        params['limit'] = limit
+        params['offset'] = (page-1)*limit
+        result = client.query(query, params)
+        rows = result.result_rows
+        columns = result.column_names
+        data = [dict(zip(columns, row)) for row in rows]
+        # 요약 통계
+        if data:
             summary = {
-                "totalKeywords": total_filtered,
-                "avgNdcgScore": sum(item["ndcg_score"] for item in fake_data) / len(fake_data),
-                "avgPrecision": sum(item["precision"] for item in fake_data) / len(fake_data),
-                "avgRecall": sum(item["recall"] for item in fake_data) / len(fake_data),
-                "anomalyCount": sum(1 for item in fake_data if item["is_anomaly"]),
+                "totalKeywords": len(data),
+                "avgNdcgScore": sum(d["gpt_ndcg_score"] for d in data) / len(data),
+                "avgPrecision": sum(d["gpt_precision"] for d in data) / len(data),
+                "avgRecall": sum(d["gpt_recall"] for d in data) / len(data),
+                "anomalyCount": 0,
                 "lastUpdated": datetime.now().isoformat()
             }
         else:
@@ -236,17 +236,15 @@ async def get_quality_dashboard_data(
                 "anomalyCount": 0,
                 "lastUpdated": datetime.now().isoformat()
             }
-        
         return QualityDataResponse(
             success=True,
-            data=paginated_data,
+            data=data,
             summary=summary,
-            total=total_filtered,
-            message="테스트 데이터 조회 성공"
+            total=len(data),
+            message="ClickHouse 평가 데이터 조회 성공"
         )
-        
     except Exception as e:
-        logger.error(f"품질 대시보드 데이터 조회 실패: {e}")
+        logger.error(f"ClickHouse 평가 데이터 조회 실패: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -256,37 +254,67 @@ async def get_trend_data(
     dateRange: str = Query("7d", description="날짜 범위"),
     trend_analyzer: TrendAnalyzer = Depends(get_trend_analyzer)
 ):
-    """트렌드 데이터 조회"""
+    """ClickHouse 기반 실제 트렌드 데이터 조회"""
     try:
-        # 날짜 범위에 따른 데이터 포인트 수 결정
+        client = clickhouse_connect.get_client(
+            host='localhost', port=8123, username='default', password=''
+        )
+        
+        # 날짜 범위에 따른 일 수 결정
         days_map = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
         days = days_map.get(dateRange, 7)
         
-        fake_trend_data = []
-        for i in range(days):
-            current_date = date.today() - timedelta(days=days-1-i)
-            
-            # 플랫폼별 데이터 생성
-            platforms = ["musinsa", "29cm"] if platform == "all" else [platform]
-            
-            for plt in platforms:
-                fake_trend_data.append({
-                    "date": current_date.isoformat(),
-                    "platform": plt,
-                    "ndcg_score": 0.7 + (i % 3) * 0.1 + (0.05 if plt == "musinsa" else 0),
-                    "precision": 0.8 + (i % 4) * 0.05 + (0.03 if plt == "musinsa" else 0),
-                    "recall": 0.75 + (i % 5) * 0.05 + (0.02 if plt == "musinsa" else 0),
-                    "relevance_score": 0.85 + (i % 3) * 0.05,
-                    "confidence_score": 0.9 + (i % 2) * 0.05,
-                    "processing_time": 200 + (i % 15) * 20,
-                    "api_response_time": 100 + (i % 10) * 10,
-                    "total_assessments": 50 + (i % 20) * 5
-                })
+        # 필터 조건 구성
+        where = ["qad.assessment_date >= today() - %(days)s"]
+        params = {'days': days}
+        
+        if platform != "all":
+            where.append("qad.platform = %(platform)s")
+            params['platform'] = platform
+        
+        where_clause = " AND ".join(where)
+        
+        # 일별 트렌드 데이터 집계 쿼리 (실제 데이터가 있는 필드만 사용)
+        query = f'''
+            SELECT 
+                qad.assessment_date as date,
+                qad.platform,
+                avg(qad.gpt_ndcg_score) as ndcg_score,
+                avg(qad.gpt_precision) as precision,
+                avg(qad.gpt_recall) as recall,
+                avg(qad.processing_time) as processing_time,
+                avg(qad.api_response_time) as api_response_time,
+                count(*) as total_assessments
+            FROM quality_assessment_daily qad
+            WHERE {where_clause}
+            GROUP BY qad.assessment_date, qad.platform
+            ORDER BY qad.assessment_date ASC, qad.platform ASC
+        '''
+        
+        result = client.query(query, params)
+        rows = result.result_rows
+        columns = result.column_names
+        
+        trend_data = []
+        for row in rows:
+            row_dict = dict(zip(columns, row))
+            trend_data.append({
+                "date": str(row_dict["date"]),
+                "platform": row_dict["platform"],
+                "ndcg_score": float(row_dict["ndcg_score"] or 0),
+                "precision": float(row_dict["precision"] or 0),
+                "recall": float(row_dict["recall"] or 0),
+                "relevance_score": float(row_dict["ndcg_score"] or 0),  # NDCG를 relevance로 사용
+                "confidence_score": float(row_dict["precision"] or 0),  # Precision을 confidence로 사용
+                "processing_time": float(row_dict["processing_time"] or 0),
+                "api_response_time": float(row_dict["api_response_time"] or 0),
+                "total_assessments": int(row_dict["total_assessments"] or 0)
+            })
         
         return TrendDataResponse(
             success=True,
-            data=fake_trend_data,
-            message="테스트 트렌드 데이터 조회 성공"
+            data=trend_data,
+            message="ClickHouse 트렌드 데이터 조회 성공"
         )
         
     except Exception as e:

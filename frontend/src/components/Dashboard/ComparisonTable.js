@@ -19,15 +19,16 @@ const ComparisonTable = ({
       color: "default",
     };
 
-    return (
-      <Tag color={platformInfo.color}>
-        {platformInfo.label}
-      </Tag>
-    );
+    return <Tag color={platformInfo.color}>{platformInfo.label}</Tag>;
   };
 
   // 점수 뱃지
   const getScoreBadge = (score, type) => {
+    // score가 undefined이거나 null인 경우 처리
+    if (score === undefined || score === null || isNaN(score)) {
+      return <Tag color="default">-</Tag>;
+    }
+
     const grade = getQualityGrade(score);
     let color = "default";
     if (grade === "excellent") color = "green";
@@ -35,7 +36,7 @@ const ComparisonTable = ({
     else if (grade === "average") color = "orange";
     else if (grade === "below-average") color = "red";
     else if (grade === "poor") color = "red";
-    
+
     return <Tag color={color}>{score.toFixed(3)}</Tag>;
   };
 
@@ -57,32 +58,33 @@ const ComparisonTable = ({
     },
     {
       title: "NDCG 점수",
-      dataIndex: "ndcg_score",
-      key: "ndcg_score",
-      sorter: (a, b) => a.ndcg_score - b.ndcg_score,
+      dataIndex: "gpt_ndcg_score",
+      key: "gpt_ndcg_score",
+      sorter: (a, b) => a.gpt_ndcg_score - b.gpt_ndcg_score,
       defaultSortOrder: "descend",
       render: (score) => getScoreBadge(score, "ndcg"),
     },
     {
       title: "정확도",
-      dataIndex: "precision",
-      key: "precision",
-      sorter: (a, b) => a.precision - b.precision,
+      dataIndex: "gpt_precision",
+      key: "gpt_precision",
+      sorter: (a, b) => a.gpt_precision - b.gpt_precision,
       render: (score) => getScoreBadge(score, "precision"),
     },
     {
       title: "재현율",
-      dataIndex: "recall",
-      key: "recall",
-      sorter: (a, b) => a.recall - b.recall,
+      dataIndex: "gpt_recall",
+      key: "gpt_recall",
+      sorter: (a, b) => a.gpt_recall - b.gpt_recall,
       render: (score) => getScoreBadge(score, "recall"),
     },
     {
       title: "평가일",
       dataIndex: "assessment_date",
       key: "assessment_date",
-      sorter: (a, b) => new Date(a.assessment_date) - new Date(b.assessment_date),
-      render: (date) => date ? new Date(date).toLocaleDateString() : "-",
+      sorter: (a, b) =>
+        new Date(a.assessment_date) - new Date(b.assessment_date),
+      render: (date) => (date ? new Date(date).toLocaleDateString() : "-"),
     },
   ];
 
