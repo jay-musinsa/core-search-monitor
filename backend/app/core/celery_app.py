@@ -5,6 +5,25 @@ Celery 애플리케이션 설정
 """
 
 import os
+from pathlib import Path
+
+# 환경변수 로드 (Celery worker 시작 시)
+try:
+    from dotenv import load_dotenv
+    
+    # .env 파일 경로 찾기 (backend 디렉토리)
+    current_dir = Path(__file__).parent.parent.parent
+    env_file = current_dir / '.env'
+    
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"[Celery] .env 파일 로드 완료: {env_file}")
+    else:
+        print(f"[Celery] .env 파일이 없습니다: {env_file}")
+        
+except ImportError:
+    print("[Celery] python-dotenv가 설치되지 않았습니다.")
+
 from celery import Celery
 from celery.signals import worker_ready, worker_shutdown
 from kombu import Queue
@@ -32,12 +51,15 @@ app.conf.update(
     enable_utc=True,
     
     # 워커 설정
-    worker_prefetch_multiplier=1,  # 메모리 사용량 최적화
     worker_max_tasks_per_child=1000,  # 메모리 누수 방지
     worker_disable_rate_limits=False,
     
     # 큐 설정
     task_routes={
+        'health_check': {
+            'queue': 'keyword_assessment',
+            'routing_key': 'keyword_assessment',
+        },
         'keyword_quality_assessment.tasks.assess_single_keyword': {
             'queue': 'keyword_assessment',
             'routing_key': 'keyword_assessment',
@@ -53,6 +75,22 @@ app.conf.update(
         'keyword_quality_assessment.tasks.detect_anomalies': {
             'queue': 'anomaly_detection',
             'routing_key': 'anomaly_detection',
+        },
+        'process_batch_keywords': {
+            'queue': 'batch_processing',
+            'routing_key': 'batch_processing',
+        },
+        'daily_keyword_assessment': {
+            'queue': 'batch_processing',
+            'routing_key': 'batch_processing',
+        },
+        'get_batch_status': {
+            'queue': 'keyword_assessment',
+            'routing_key': 'keyword_assessment',
+        },
+        'cleanup_old_batches': {
+            'queue': 'batch_processing',
+            'routing_key': 'batch_processing',
         },
     },
     
@@ -75,7 +113,6 @@ app.conf.update(
     
     # 재시도 설정
     task_acks_late=True,
-    worker_prefetch_multiplier=1,
     task_reject_on_worker_lost=True,
     
     # 모니터링 설정
@@ -99,15 +136,14 @@ app.conf.update(
     task_time_limit=1800,  # 30분
     task_soft_time_limit=1500,  # 25분
     
-    # 에러 처리
-    task_reject_on_worker_lost=True,
-    task_acks_late=True,
+    # 에러 처리 설정은 위에서 이미 정의됨
 )
 
 # 작업 자동 발견
 app.autodiscover_tasks([
     'app.tasks.keyword_assessment',
-    'app.tasks.batch_processing',
+    'app.tasks.batch_processing', 
+    'app.tasks.simple_keyword_assessment',  # 새로 추가된 간단한 키워드 평가 태스크
     'app.tasks.trend_analysis',
     'app.tasks.anomaly_detection',
 ])

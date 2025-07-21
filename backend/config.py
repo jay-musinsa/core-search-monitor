@@ -1,5 +1,24 @@
 import os
 from typing import Optional
+from pathlib import Path
+
+# .env 파일 로드
+try:
+    from dotenv import load_dotenv
+    
+    # 현재 파일 기준으로 .env 파일 경로 찾기
+    current_dir = Path(__file__).parent
+    env_file = current_dir / '.env'
+    
+    # .env 파일이 존재하면 로드
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"[Config] .env 파일 로드 완료: {env_file}")
+    else:
+        print(f"[Config] .env 파일이 없습니다: {env_file}")
+        
+except ImportError:
+    print("[Config] python-dotenv가 설치되지 않았습니다. 'pip install python-dotenv' 실행하세요.")
 
 class Config:
     """애플리케이션 설정"""
