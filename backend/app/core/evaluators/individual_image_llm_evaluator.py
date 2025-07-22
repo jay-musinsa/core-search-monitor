@@ -36,37 +36,49 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
         print(f"[{self.name}] {keyword} 개별 이미지 평가 시작 (상품 수: {len(products)})")
         
         if not self.client:
-            print(f"[{self.name}] OpenAI API 키가 없어 시뮬레이션 결과 반환")
+            print(f"[{self.name}] OpenAI API 키가 없어 시뮬레이션 모드로 실행")
             return self._create_simulation_result(keyword, products)
-        
-        if not products:
-            print(f"[{self.name}] 평가할 상품이 없습니다")
-            return EvaluationResult(
-                method=self.name,
-                ndcg_10=0.0,
-                precision=0.0,
-                recall=0.0,
-                confidence=0.0,
-                details={"error": "평가할 상품이 없습니다"},
-                precision_issues=[]
-            )
-        
+
         try:
-            # 각 상품 이미지를 개별적으로 평가
-            individual_evaluations = []
+            print(f"[{self.name}] ==================== 개별 이미지 평가 시작 ====================")
+            print(f"[{self.name}] 키워드: '{keyword}' | 총 상품수: {len(products)}개 | 평가 대상: {min(self.max_products, len(products))}개")
+            
             relevant_count = 0
             precision_issues = []
             
             # 병렬 처리를 위한 세마포어 (동시 요청 수 제한)
             semaphore = asyncio.Semaphore(3)  # 최대 3개 동시 요청
             
+            # 진행률 추적을 위한 변수
+            completed_count = 0
+            total_count = min(self.max_products, len(products))
+            
             async def evaluate_single_product(product, rank):
+                nonlocal completed_count
                 async with semaphore:
-                    return await self._evaluate_single_product(keyword, product, rank)
+                    print(f"[{self.name}] 🔍 상품 {rank}/{total_count} 평가 중: {product.get('goodsName', 'Unknown')[:30]}...")
+                    
+                    result = await self._evaluate_single_product(keyword, product, rank)
+                    
+                    completed_count += 1
+                    progress_percent = (completed_count / total_count) * 100
+                    
+                    if isinstance(result, dict) and result.get("relevant", False):
+                        print(f"[{self.name}] ✅ 상품 {rank}/{total_count} 완료 ({progress_percent:.1f}%): 관련성 있음 (점수: {result.get('relevance_score', 0):.1f}/5.0)")
+                    else:
+                        relevance_score = result.get('relevance_score', 0) if isinstance(result, dict) else 0
+                        print(f"[{self.name}] ❌ 상품 {rank}/{total_count} 완료 ({progress_percent:.1f}%): 관련성 낮음 (점수: {relevance_score:.1f}/5.0)")
+                    
+                    # 10개 단위로 중간 진행 상황 요약
+                    if completed_count % 10 == 0 or completed_count == total_count:
+                        current_relevant = len([r for r in [result] if isinstance(r, dict) and r.get("relevant", False)])
+                        print(f"[{self.name}] 📊 진행 상황: {completed_count}/{total_count}개 완료 ({progress_percent:.1f}%) | 현재 관련성 있는 상품: {relevant_count + current_relevant}개")
+                    
+                    return result
             
             # 설정된 개수만큼 상품 평가 (기본 50개)
             top_products = products[:self.max_products]
-            print(f"[{self.name}] 상위 {len(top_products)}개 상품 평가 시작 (최대 {self.max_products}개)")
+            print(f"[{self.name}] 🚀 병렬 평가 시작 (최대 3개 동시 처리)")
             
             tasks = [
                 evaluate_single_product(product, rank + 1) 
@@ -75,11 +87,16 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
             
             individual_evaluations = await asyncio.gather(*tasks, return_exceptions=True)
             
+            print(f"[{self.name}] 📋 평가 결과 집계 중...")
+            
             # 결과 집계
             valid_evaluations = []
+            failed_count = 0
+            
             for i, eval_result in enumerate(individual_evaluations):
                 if isinstance(eval_result, Exception):
-                    print(f"[{self.name}] 상품 {i+1} 평가 실패: {eval_result}")
+                    failed_count += 1
+                    print(f"[{self.name}] ⚠️ 상품 {i+1} 평가 실패: {eval_result}")
                     valid_evaluations.append({
                         "rank": i + 1,
                         "relevant": False,
@@ -103,7 +120,11 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                             "reason": f"개별 이미지 LLM 평가: {reason_detail} (관련성 점수: {relevance_score:.2f}/5.0)"
                         })
             
+            print(f"[{self.name}] 📊 집계 완료: 성공 {len(valid_evaluations) - failed_count}개 | 실패 {failed_count}개 | 관련성 있음 {relevant_count}개")
+            
             # 메트릭 계산
+            print(f"[{self.name}] 🧮 메트릭 계산 중...")
+            
             # NDCG@10은 상위 10개만 사용
             ndcg_evaluations = valid_evaluations[:10]
             ndcg_10 = self._calculate_ndcg_10(ndcg_evaluations)
@@ -117,7 +138,10 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
             success_rate = len([e for e in valid_evaluations if "평가 실패" not in e.get("reason", "")]) / len(valid_evaluations)
             confidence = 0.9 * success_rate  # 개별 이미지 평가는 높은 신뢰도
             
-            print(f"[{self.name}] {keyword} 평가 완료: NDCG={ndcg_10:.3f}, Precision={precision:.3f}, 신뢰도={confidence:.3f}")
+            print(f"[{self.name}] ✨ {keyword} 평가 완료!")
+            print(f"[{self.name}] 📈 최종 결과: NDCG@10={ndcg_10:.3f} | Precision={precision:.3f} | Recall={recall:.3f} | 신뢰도={confidence:.3f}")
+            print(f"[{self.name}] 🔍 문제 상품: {len(precision_issues)}개 발견")
+            print(f"[{self.name}] ==================== 개별 이미지 평가 완료 ====================")
             
             return EvaluationResult(
                 method=self.name,
@@ -154,7 +178,11 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
             goods_name = product.get("goodsName", "")
             goods_no = product.get("goodsNo", "")
             
+            # 상품 정보 로그 (간단히)
+            print(f"[{self.name}] 📦 상품 {rank}: {goods_name[:20]}{'...' if len(goods_name) > 20 else ''} (ID: {goods_no})")
+            
             if not image_url or image_url == "N/A":
+                print(f"[{self.name}] ⚠️ 상품 {rank}: 이미지 URL 없음")
                 return {
                     "rank": rank,
                     "goods_no": goods_no,
@@ -165,8 +193,15 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                 }
             
             # 이미지 다운로드 및 base64 인코딩
+            print(f"[{self.name}] 🖼️ 상품 {rank}: 이미지 다운로드 중...")
+            download_start = asyncio.get_event_loop().time()
+            
             base64_image = await self._download_and_encode_image(image_url)
+            
+            download_time = asyncio.get_event_loop().time() - download_start
+            
             if not base64_image:
+                print(f"[{self.name}] ❌ 상품 {rank}: 이미지 다운로드 실패 ({download_time:.2f}초)")
                 return {
                     "rank": rank,
                     "goods_no": goods_no,
@@ -176,7 +211,12 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                     "reason": "이미지 다운로드 실패"
                 }
             
+            print(f"[{self.name}] ✅ 상품 {rank}: 이미지 다운로드 완료 ({download_time:.2f}초, {len(base64_image)//1024}KB)")
+            
             # LLM에게 개별 상품 평가 요청
+            print(f"[{self.name}] 🤖 상품 {rank}: GPT-4o 평가 요청 중...")
+            llm_start = asyncio.get_event_loop().time()
+            
             prompt = f"""
 다음 상품이 검색 키워드 "{keyword}"와 얼마나 관련성이 있는지 평가해주세요.
 
@@ -220,11 +260,17 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                 max_tokens=300
             )
             
+            llm_time = asyncio.get_event_loop().time() - llm_start
+            print(f"[{self.name}] 🎯 상품 {rank}: GPT-4o 응답 수신 ({llm_time:.2f}초)")
+            
             # 응답 파싱
             content = response.choices[0].message.content.strip()
+            print(f"[{self.name}] 📄 상품 {rank}: 응답 내용 파싱 중...")
             
             # JSON 파싱
             try:
+                # JSON 블록 정리
+                original_content = content
                 if content.startswith("```json"):
                     content = content[7:-3]
                 elif content.startswith("```"):
@@ -232,55 +278,92 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                 
                 result = json.loads(content)
                 
+                # 결과 검증 및 로그
+                relevant = result.get("relevant", False)
+                relevance_score = float(result.get("relevance_score", 0.0))
+                reason = result.get("reason", "평가 완료")
+                
+                if relevant:
+                    print(f"[{self.name}] ✅ 상품 {rank}: 관련성 있음 (점수: {relevance_score:.2f}) - {reason[:50]}{'...' if len(reason) > 50 else ''}")
+                else:
+                    print(f"[{self.name}] ❌ 상품 {rank}: 관련성 없음 (점수: {relevance_score:.2f}) - {reason[:50]}{'...' if len(reason) > 50 else ''}")
+                
                 return {
                     "rank": rank,
                     "goods_no": goods_no,
                     "goods_name": goods_name,
-                    "relevant": result.get("relevant", False),
-                    "relevance_score": float(result.get("relevance_score", 0.0)),
-                    "reason": result.get("reason", "평가 완료")
+                    "relevant": relevant,
+                    "relevance_score": relevance_score,
+                    "reason": reason
                 }
                 
             except json.JSONDecodeError as e:
-                print(f"[{self.name}] JSON 파싱 실패 (상품 {goods_no}): {e}")
+                print(f"[{self.name}] ❌ 상품 {rank}: JSON 파싱 실패 - {str(e)}")
+                print(f"[{self.name}] 📄 상품 {rank}: 원본 응답: {original_content[:100]}{'...' if len(original_content) > 100 else ''}")
                 return {
                     "rank": rank,
                     "goods_no": goods_no,
                     "goods_name": goods_name,
                     "relevant": False,
                     "relevance_score": 0.0,
-                    "reason": "LLM 응답 파싱 실패"
+                    "reason": f"LLM 응답 파싱 실패: {str(e)}"
                 }
         
         except Exception as e:
-            print(f"[{self.name}] 개별 상품 평가 실패 (상품 {product.get('goodsNo', 'Unknown')}): {e}")
+            print(f"[{self.name}] 💥 상품 {rank}: 평가 중 예외 발생 - {str(e)}")
             return {
                 "rank": rank,
-                "goods_no": product.get("goodsNo", ""),
-                "goods_name": product.get("goodsName", ""),
+                "goods_no": product.get("goodsNo", "Unknown"),
+                "goods_name": product.get("goodsName", "Unknown"),
                 "relevant": False,
                 "relevance_score": 0.0,
-                "reason": f"평가 오류: {str(e)}"
+                "reason": f"평가 실패: {str(e)}"
             }
     
     async def _download_and_encode_image(self, image_url: str) -> Optional[str]:
         """이미지를 다운로드하고 base64로 인코딩"""
         try:
+            # URL 유효성 간단 체크
+            if not image_url.startswith(('http://', 'https://')):
+                print(f"[{self.name}] 🚫 잘못된 이미지 URL: {image_url[:50]}{'...' if len(image_url) > 50 else ''}")
+                return None
+            
             # 동기적 요청을 비동기로 처리
             loop = asyncio.get_event_loop()
+            
+            print(f"[{self.name}] 🌐 이미지 요청: {image_url[:50]}{'...' if len(image_url) > 50 else ''}")
+            
             response = await loop.run_in_executor(
                 None, 
-                lambda: requests.get(image_url, timeout=10)
+                lambda: requests.get(image_url, timeout=10, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                })
             )
             
             if response.status_code == 200:
+                content_length = len(response.content)
+                content_type = response.headers.get('content-type', 'unknown')
+                
+                print(f"[{self.name}] ✅ 이미지 다운로드 성공: {content_length//1024}KB ({content_type})")
+                
+                # 이미지 크기 체크 (너무 큰 이미지 방지)
+                if content_length > 5 * 1024 * 1024:  # 5MB 제한
+                    print(f"[{self.name}] ⚠️ 이미지 크기 초과: {content_length//1024}KB > 5MB")
+                    return None
+                
                 return base64.b64encode(response.content).decode('utf-8')
             else:
-                print(f"[{self.name}] 이미지 다운로드 실패: HTTP {response.status_code}")
+                print(f"[{self.name}] ❌ 이미지 다운로드 실패: HTTP {response.status_code}")
                 return None
                 
+        except requests.exceptions.Timeout:
+            print(f"[{self.name}] ⏰ 이미지 다운로드 타임아웃 (10초)")
+            return None
+        except requests.exceptions.ConnectionError:
+            print(f"[{self.name}] 🔌 이미지 다운로드 연결 실패")
+            return None
         except Exception as e:
-            print(f"[{self.name}] 이미지 다운로드 오류: {e}")
+            print(f"[{self.name}] 💥 이미지 다운로드 오류: {str(e)}")
             return None
     
     def _calculate_ndcg_10(self, evaluations: List[Dict]) -> float:
@@ -313,14 +396,22 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
         import random
         import hashlib
         
+        print(f"[{self.name}] 🎭 ==================== 시뮬레이션 모드 ====================")
+        print(f"[{self.name}] 🎯 키워드: '{keyword}' | 상품수: {len(products)}개 | 평가 대상: {min(self.max_products, len(products))}개")
+        
         # 키워드 기반 시드 생성 (일관된 결과를 위해)
         seed_str = f"{keyword}_{len(products)}"
         seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
         random.seed(seed)
         
+        print(f"[{self.name}] 🎲 시드 생성: {seed} (일관된 결과 보장)")
+        
         # 키워드 복잡도에 따른 기본 성능 계산
         keyword_complexity = self._calculate_keyword_complexity(keyword)
         product_count = min(self.max_products, len(products))
+        
+        print(f"[{self.name}] 📊 키워드 복잡도: {keyword_complexity:.3f}")
+        print(f"[{self.name}] 🔢 평가 상품수: {product_count}개")
         
         # 동적 메트릭 계산
         base_ndcg = 0.6 + (keyword_complexity * 0.3)  # 0.6 ~ 0.9
@@ -334,9 +425,15 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
         precision = max(0.1, base_precision - (product_difficulty * 0.15))
         recall = max(0.1, base_recall - (product_difficulty * 0.1))
         
+        print(f"[{self.name}] 📈 기본 점수: NDCG={base_ndcg:.3f}, Precision={base_precision:.3f}, Recall={base_recall:.3f}")
+        print(f"[{self.name}] ⚖️ 난이도 조정: {product_difficulty:.3f} (상품수 기반)")
+        print(f"[{self.name}] 🎯 최종 점수: NDCG={ndcg_10:.3f}, Precision={precision:.3f}, Recall={recall:.3f}")
+        
         # 신뢰도는 Individual Image LLM의 특성상 높게 설정하되 동적 조정
         confidence = 0.85 + (keyword_complexity * 0.1) - (product_difficulty * 0.05)
         confidence = max(0.7, min(0.95, confidence))
+        
+        print(f"[{self.name}] 🔒 신뢰도: {confidence:.3f}")
         
         # 시뮬레이션용 precision_issues 생성
         precision_issues = []
@@ -344,6 +441,8 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
             # 정밀도에 따라 문제 상품 수 결정
             problem_ratio = 1.0 - precision
             problem_count = max(1, int(min(product_count, 10) * problem_ratio))
+            
+            print(f"[{self.name}] 🚨 문제 상품 생성: {problem_count}개 (문제 비율: {problem_ratio:.2f})")
             
             if problem_count > 0:
                 available_products = products[:min(product_count, 10)]
@@ -360,12 +459,18 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
                     selected_reason = reasons[i % len(reasons)]
                     simulated_score = round(random.uniform(1.5, 2.8), 1)  # 3.0 미만 점수
                     
+                    print(f"[{self.name}] ❌ 문제 상품 {i+1}: {product.get('goodsName', 'Unknown')[:30]}... (점수: {simulated_score}/5.0)")
+                    
                     precision_issues.append({
                         "goods_no": str(product.get("goodsNo", "N/A")),
                         "goods_name": product.get("goodsName", "시뮬레이션 상품"),
                         "image_url": product.get("thumbnail", "N/A"),
                         "reason": f"개별 이미지 LLM 평가: {selected_reason} (관련성 점수: {simulated_score}/5.0, 시뮬레이션)"
                     })
+        
+        print(f"[{self.name}] ✨ 시뮬레이션 완료!")
+        print(f"[{self.name}] 📋 생성된 문제 상품: {len(precision_issues)}개")
+        print(f"[{self.name}] 🎭 ==================== 시뮬레이션 완료 ====================")
         
         return EvaluationResult(
             method=self.name,
