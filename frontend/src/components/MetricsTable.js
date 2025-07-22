@@ -140,38 +140,6 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
   // 테이블 컬럼
   const columns = [
     {
-      title: "키워드",
-      dataIndex: "keyword",
-      key: "keyword",
-      width: 120,
-      render: (text) => (
-        <Text strong className="text-gray-900">
-          {text}
-        </Text>
-      ),
-    },
-    {
-      title: "플랫폼",
-      dataIndex: "platform",
-      key: "platform",
-      width: 100,
-      render: (platform) => getPlatformTag(platform),
-    },
-    {
-      title: "평가 방법",
-      dataIndex: "evaluation_method",
-      key: "evaluation_method",
-      width: 120,
-      render: (method, record) => (
-        <Space direction="vertical" size="small">
-          {getEvaluationMethodBadge(method, record.confidence)}
-          <Text className="text-xs text-gray-500">
-            신뢰도: {safeToPercent(record.confidence, 0)}
-          </Text>
-        </Space>
-      ),
-    },
-    {
       title: "평가일",
       dataIndex: "assessment_date",
       key: "assessment_date",
@@ -205,6 +173,38 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
         if (!b.assessment_date) return -1;
         return new Date(a.assessment_date) - new Date(b.assessment_date);
       },
+    },
+    {
+      title: "키워드",
+      dataIndex: "keyword",
+      key: "keyword",
+      width: 120,
+      render: (text) => (
+        <Text strong className="text-gray-900">
+          {text}
+        </Text>
+      ),
+    },
+    {
+      title: "플랫폼",
+      dataIndex: "platform",
+      key: "platform",
+      width: 100,
+      render: (platform) => getPlatformTag(platform),
+    },
+    {
+      title: "평가 방법",
+      dataIndex: "evaluation_method",
+      key: "evaluation_method",
+      width: 120,
+      render: (method, record) => (
+        <Space direction="vertical" size="small">
+          {getEvaluationMethodBadge(method, record.confidence)}
+          <Text className="text-xs text-gray-500">
+            신뢰도: {safeToPercent(record.confidence, 0)}
+          </Text>
+        </Space>
+      ),
     },
     {
       title: "NDCG@10",

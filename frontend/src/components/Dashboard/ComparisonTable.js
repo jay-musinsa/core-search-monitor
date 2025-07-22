@@ -27,6 +27,8 @@ const ComparisonTable = ({
 }) => {
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [selectedScreenshot, setSelectedScreenshot] = useState(null);
 
   // 플랫폼 뱃지
   const getPlatformBadge = (platform) => {
@@ -91,7 +93,27 @@ const ComparisonTable = ({
 
   // 분석 상세 보기
   const handleAnalysisClick = (keyword, platform, data) => {
-    setSelectedAnalysis({ keyword, platform, data });
+    // precision_issues JSON 파싱 처리
+    let precision_issues = [];
+    if (data.precision_issues) {
+      if (typeof data.precision_issues === "string") {
+        try {
+          precision_issues = JSON.parse(data.precision_issues);
+        } catch (e) {
+          console.warn("precision_issues JSON 파싱 실패:", e);
+          precision_issues = [];
+        }
+      } else if (Array.isArray(data.precision_issues)) {
+        precision_issues = data.precision_issues;
+      }
+    }
+
+    setSelectedAnalysis({
+      keyword,
+      platform,
+      data,
+      precision_issues,
+    });
     setShowAnalysisModal(true);
   };
 
@@ -106,12 +128,25 @@ const ComparisonTable = ({
       const imageUrl = screenshotPath.startsWith("http")
         ? screenshotPath
         : `${BACKEND_URL}${screenshotPath}`;
-      window.open(imageUrl, "_blank");
+      setSelectedScreenshot(imageUrl);
+      setShowScreenshotModal(true);
     }
   };
 
   // 테이블 컬럼 정의
   const columns = [
+    {
+      title: "평가일",
+      dataIndex: "assessment_date",
+      key: "assessment_date",
+      width: 100,
+      render: (date) => {
+        if (!date) return <Text type="secondary">-</Text>;
+        return <Text className="text-sm">{date}</Text>;
+      },
+      sorter: (a, b) =>
+        new Date(a.assessment_date || 0) - new Date(b.assessment_date || 0),
+    },
     {
       title: "키워드",
       dataIndex: "keyword",
@@ -239,18 +274,6 @@ const ComparisonTable = ({
       },
     },
     {
-      title: "평가일",
-      dataIndex: "assessment_date",
-      key: "assessment_date",
-      width: 100,
-      render: (date) => {
-        if (!date) return <Text type="secondary">-</Text>;
-        return <Text className="text-sm">{date}</Text>;
-      },
-      sorter: (a, b) =>
-        new Date(a.assessment_date || 0) - new Date(b.assessment_date || 0),
-    },
-    {
       title: "작업",
       key: "actions",
       width: 80,
@@ -290,6 +313,17 @@ const ComparisonTable = ({
         }}
         scroll={{ x: 1200 }}
         size="small"
+        onRow={(record) => ({
+          onClick: () =>
+            handleAnalysisClick(record.keyword, record.platform, record),
+          style: { cursor: "pointer" },
+          className: "hover:bg-blue-50 transition-colors duration-200",
+        })}
+        rowClassName={(record, index) =>
+          `hover:bg-blue-50 transition-colors duration-200 ${
+            index % 2 === 0 ? "bg-gray-50" : "bg-white"
+          }`
+        }
       />
 
       {/* 분석 상세 모달 */}
@@ -297,7 +331,7 @@ const ComparisonTable = ({
         title={
           selectedAnalysis ? (
             <div className="flex items-center gap-2">
-              <Text strong>
+              <Text strong className="text-lg">
                 {selectedAnalysis.keyword} - {selectedAnalysis.platform}
               </Text>
               {selectedAnalysis.data?.evaluation_method &&
@@ -317,107 +351,294 @@ const ComparisonTable = ({
             닫기
           </Button>,
         ]}
-        width={800}
+        width={900}
+        className="analysis-detail-modal"
       >
         {selectedAnalysis && (
-          <div className="space-y-4">
-            {/* 점수 요약 */}
-            <Card size="small" title="평가 점수">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">
-                    {safeToFixed(selectedAnalysis.data.ndcg_score || 0, 3)}
-                  </div>
-                  <div className="text-sm text-gray-500">NDCG@10</div>
+          <div className="space-y-6">
+            {/* 기본 정보 카드 */}
+            <Card size="small" className="border-l-4 border-l-blue-500">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <Text className="text-xs text-gray-500 block">평가일</Text>
+                  <Text strong className="text-sm">
+                    {selectedAnalysis.data.assessment_date || "실시간"}
+                  </Text>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {safeToFixed(selectedAnalysis.data.precision || 0, 3)}
-                  </div>
-                  <div className="text-sm text-gray-500">Precision</div>
+                <div>
+                  <Text className="text-xs text-gray-500 block">처리시간</Text>
+                  <Text strong className="text-sm">
+                    {selectedAnalysis.data.processing_time
+                      ? `${selectedAnalysis.data.processing_time.toFixed(1)}초`
+                      : "-"}
+                  </Text>
                 </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">
-                    {safeToFixed(selectedAnalysis.data.recall || 0, 3)}
-                  </div>
-                  <div className="text-sm text-gray-500">Recall</div>
+                <div>
+                  <Text className="text-xs text-gray-500 block">
+                    API 결과수
+                  </Text>
+                  <Text strong className="text-sm">
+                    {selectedAnalysis.data.api_total_results || 0}개
+                  </Text>
+                </div>
+                <div>
+                  <Text className="text-xs text-gray-500 block">신뢰도</Text>
+                  <Text
+                    strong
+                    className="text-sm"
+                    style={{
+                      color: getConfidenceColor(
+                        selectedAnalysis.data.confidence || 0
+                      ),
+                    }}
+                  >
+                    {((selectedAnalysis.data.confidence || 0) * 100).toFixed(0)}
+                    %
+                  </Text>
                 </div>
               </div>
             </Card>
+
+            {/* 점수 요약 */}
+            <Card
+              size="small"
+              title="평가 점수"
+              className="border-l-4 border-l-green-500"
+            >
+              <div className="grid grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600 mb-1">
+                    {safeToFixed(selectedAnalysis.data.ndcg_score || 0, 3)}
+                  </div>
+                  <div className="text-sm text-gray-500">NDCG@10</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    {getQualityGrade(selectedAnalysis.data.ndcg_score || 0) ===
+                    "excellent"
+                      ? "우수"
+                      : getQualityGrade(
+                          selectedAnalysis.data.ndcg_score || 0
+                        ) === "good"
+                      ? "양호"
+                      : getQualityGrade(
+                          selectedAnalysis.data.ndcg_score || 0
+                        ) === "average"
+                      ? "보통"
+                      : getQualityGrade(
+                          selectedAnalysis.data.ndcg_score || 0
+                        ) === "below-average"
+                      ? "미흡"
+                      : "부족"}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600 mb-1">
+                    {safeToFixed(selectedAnalysis.data.precision || 0, 3)}
+                  </div>
+                  <div className="text-sm text-gray-500">Precision</div>
+                  <div className="text-xs text-gray-400 mt-1">정확도</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600 mb-1">
+                    {safeToFixed(selectedAnalysis.data.recall || 0, 3)}
+                  </div>
+                  <div className="text-sm text-gray-500">Recall</div>
+                  <div className="text-xs text-gray-400 mt-1">재현율</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* 평가 방법 및 상세 정보 */}
+            {selectedAnalysis.data.evaluation_details && (
+              <Card
+                size="small"
+                title="평가 상세 정보"
+                className="border-l-4 border-l-orange-500"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Text strong className="text-sm">
+                      평가 방법:
+                    </Text>
+                    <Text className="text-sm">
+                      {selectedAnalysis.data.evaluation_method}
+                    </Text>
+                  </div>
+                  {selectedAnalysis.data.evaluation_details.model && (
+                    <div className="flex items-center gap-2">
+                      <Text strong className="text-sm">
+                        사용 모델:
+                      </Text>
+                      <Text className="text-sm">
+                        {selectedAnalysis.data.evaluation_details.model}
+                      </Text>
+                    </div>
+                  )}
+                  {selectedAnalysis.data.evaluation_details.reasoning && (
+                    <div>
+                      <Text strong className="text-sm block mb-1">
+                        평가 근거:
+                      </Text>
+                      <Text className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                        {selectedAnalysis.data.evaluation_details.reasoning}
+                      </Text>
+                    </div>
+                  )}
+                  {selectedAnalysis.data.evaluation_details.total_products && (
+                    <div className="flex items-center gap-2">
+                      <Text strong className="text-sm">
+                        평가 상품수:
+                      </Text>
+                      <Text className="text-sm">
+                        {
+                          selectedAnalysis.data.evaluation_details
+                            .total_products
+                        }
+                        개
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
 
             {/* 평가 이유 */}
             {(selectedAnalysis.data.ndcg_reason ||
               selectedAnalysis.data.precision_reason ||
               selectedAnalysis.data.recall_reason) && (
-              <Card size="small" title="평가 이유">
-                {selectedAnalysis.data.ndcg_reason && (
-                  <div className="mb-2">
-                    <Text strong>NDCG: </Text>
-                    <Text>{selectedAnalysis.data.ndcg_reason}</Text>
-                  </div>
-                )}
-                {selectedAnalysis.data.precision_reason && (
-                  <div className="mb-2">
-                    <Text strong>Precision: </Text>
-                    <Text>{selectedAnalysis.data.precision_reason}</Text>
-                  </div>
-                )}
-                {selectedAnalysis.data.recall_reason && (
-                  <div>
-                    <Text strong>Recall: </Text>
-                    <Text>{selectedAnalysis.data.recall_reason}</Text>
-                  </div>
-                )}
+              <Card
+                size="small"
+                title="평가 이유"
+                className="border-l-4 border-l-indigo-500"
+              >
+                <div className="space-y-3">
+                  {selectedAnalysis.data.ndcg_reason && (
+                    <div className="p-3 bg-blue-50 rounded">
+                      <Text strong className="text-blue-700 block mb-1">
+                        NDCG@10 평가:
+                      </Text>
+                      <Text className="text-sm text-blue-600">
+                        {selectedAnalysis.data.ndcg_reason}
+                      </Text>
+                    </div>
+                  )}
+                  {selectedAnalysis.data.precision_reason && (
+                    <div className="p-3 bg-green-50 rounded">
+                      <Text strong className="text-green-700 block mb-1">
+                        Precision 평가:
+                      </Text>
+                      <Text className="text-sm text-green-600">
+                        {selectedAnalysis.data.precision_reason}
+                      </Text>
+                    </div>
+                  )}
+                  {selectedAnalysis.data.recall_reason && (
+                    <div className="p-3 bg-purple-50 rounded">
+                      <Text strong className="text-purple-700 block mb-1">
+                        Recall 평가:
+                      </Text>
+                      <Text className="text-sm text-purple-600">
+                        {selectedAnalysis.data.recall_reason}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* 스크린샷 표시 */}
+            {selectedAnalysis.data.screenshot_path && (
+              <Card
+                size="small"
+                title="검색 결과 스크린샷"
+                className="border-l-4 border-l-gray-500"
+              >
+                <div className="text-center">
+                  <Image
+                    src={`${BACKEND_URL}${selectedAnalysis.data.screenshot_path}`}
+                    alt={`${selectedAnalysis.keyword} ${selectedAnalysis.platform} 스크린샷`}
+                    className="rounded border border-gray-200 max-w-full"
+                    style={{ maxHeight: "400px" }}
+                    preview={{
+                      mask: (
+                        <div className="text-white">
+                          <PictureOutlined className="text-2xl mb-2" />
+                          <div>클릭하여 확대</div>
+                        </div>
+                      ),
+                    }}
+                  />
+                  <Text className="text-xs text-gray-500 block mt-2">
+                    {selectedAnalysis.platform === "musinsa"
+                      ? "무신사"
+                      : "29CM"}{" "}
+                    검색 결과 화면
+                  </Text>
+                </div>
               </Card>
             )}
 
             {/* 문제 상품 목록 */}
             {selectedAnalysis?.precision_issues &&
               selectedAnalysis.precision_issues.length > 0 && (
-                <Card className="mt-4">
-                  <Title level={5}>
-                    문제 상품 목록 ({selectedAnalysis.precision_issues.length}
-                    개)
-                  </Title>
-                  <div className="space-y-3">
+                <Card className="border-l-4 border-l-red-500">
+                  <div className="flex items-center justify-between mb-4">
+                    <Title level={5} className="mb-0">
+                      🚨 문제 상품 목록
+                    </Title>
+                    <Badge
+                      count={selectedAnalysis.precision_issues.length}
+                      style={{ backgroundColor: "#ff4d4f" }}
+                    />
+                  </div>
+                  <div className="space-y-4">
                     {selectedAnalysis.precision_issues.map((issue, idx) => (
                       <Card
                         key={idx}
                         size="small"
-                        className="border-l-4 border-l-red-400"
+                        className="border-l-4 border-l-red-400 bg-red-50"
                       >
-                        <div className="flex items-start space-x-3">
+                        <div className="flex items-start space-x-4">
                           {issue.image_url && issue.image_url !== "N/A" && (
-                            <Image
-                              src={issue.image_url}
-                              alt={issue.goods_name}
-                              width={60}
-                              height={60}
-                              className="rounded object-cover"
-                              fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
-                            />
+                            <div className="flex-shrink-0">
+                              <Image
+                                src={issue.image_url}
+                                alt={issue.goods_name}
+                                width={80}
+                                height={80}
+                                className="rounded object-cover border border-gray-300"
+                                fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+                              />
+                            </div>
                           )}
                           <div className="flex-1">
-                            <Text strong className="text-sm">
-                              {issue.goods_name}
-                            </Text>
-                            <br />
-                            <Text className="text-xs text-gray-500">
-                              상품번호: {issue.goods_no}
-                            </Text>
-                            <br />
-                            <Text className="text-sm text-red-600 font-medium">
-                              {issue.reason}
-                            </Text>
+                            <div className="mb-2">
+                              <Text strong className="text-base text-gray-900">
+                                {issue.goods_name}
+                              </Text>
+                              <br />
+                              <Text className="text-xs text-gray-500">
+                                상품번호: {issue.goods_no}
+                              </Text>
+                            </div>
+                            <div className="p-3 bg-white border border-red-200 rounded">
+                              <div className="flex items-start">
+                                <span className="text-red-500 mr-2 mt-0.5">
+                                  ⚠️
+                                </span>
+                                <Text className="text-sm text-red-700 font-medium flex-1">
+                                  {issue.reason}
+                                </Text>
+                              </div>
+                            </div>
 
                             {/* 상세 평가기별 이유 표시 */}
                             {issue.detailed_reasons &&
                               issue.detailed_reasons.length > 0 && (
-                                <div className="mt-3 p-3 bg-gray-50 border-l-4 border-l-orange-400 rounded">
+                                <div className="mt-3 p-3 bg-white border border-orange-200 rounded">
                                   <div className="flex items-center mb-2">
                                     <Text
                                       strong
-                                      className="text-gray-700 text-sm"
+                                      className="text-orange-700 text-sm"
                                     >
                                       📋 상세 평가 내용
                                     </Text>
@@ -432,7 +653,7 @@ const ComparisonTable = ({
                                       (detail, detailIdx) => (
                                         <div
                                           key={detailIdx}
-                                          className="flex items-start text-gray-700 text-xs"
+                                          className="flex items-start text-orange-700 text-xs"
                                         >
                                           <span className="text-orange-500 mr-1">
                                             ▪
@@ -447,12 +668,10 @@ const ComparisonTable = ({
 
                                   {/* 다중 평가기인 경우 추가 설명 */}
                                   {issue.detailed_reasons.length > 1 && (
-                                    <div className="mt-2 pt-2 border-t border-gray-200">
-                                      <Text className="text-xs text-gray-600 italic">
-                                        💡 여러 평가기에서 동일한 상품의 문제를
-                                        감지했습니다. 이는 해당 상품이 검색
-                                        키워드와 관련성이 낮을 가능성이 높음을
-                                        의미합니다.
+                                    <div className="mt-2 pt-2 border-t border-orange-200">
+                                      <Text className="text-xs text-orange-600">
+                                        💡 여러 평가기에서 동일한 문제를
+                                        발견했습니다.
                                       </Text>
                                     </div>
                                   )}
@@ -463,23 +682,60 @@ const ComparisonTable = ({
                       </Card>
                     ))}
                   </div>
-                </Card>
-              )}
 
-            {/* 스크린샷 */}
-            {selectedAnalysis.data.screenshot_path &&
-              selectedAnalysis.data.screenshot_path !== "N/A" && (
-                <Card size="small" title="검색 결과 스크린샷">
-                  <div className="text-center">
-                    <Image
-                      src={`${BACKEND_URL}${selectedAnalysis.data.screenshot_path}`}
-                      alt="검색 결과 스크린샷"
-                      style={{ maxWidth: "100%", maxHeight: "400px" }}
-                      fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMIAAADDCAYAAADQvc6UAAABRWlDQ1BJQ0MgUHJvZmlsZQAAKJFjYGASSSwoyGFhYGDIzSspCnJ3UoiIjFJgf8LAwSDCIMogwMCcmFxc4BgQ4ANUwgCjUcG3awyMIPqyLsis7PPOq3QdDFcvjV3jOD1boQVTPQrgSkktTgbSf4A4LbmgqISBgTEFyFYuLykAsTuAbJEioKOA7DkgdjqEvQHEToKwj4DVhAQ5A9k3gGyB5IxEoBmML4BsnSQk8XQkNtReEOBxcfXxUQg1Mjc0dyHgXNJBSWpFCYh2zi+oLMpMzyhRcASGUqqCZ16yno6CkYGRAQMDKMwhqj/fAIcloxgHQqxAjIHBEugw5sUIsSQpBobtQPdLciLEVJYzMPBHMDBsayhILEqEO4DxG0txmrERhM29nYGBddr//5/DGRjYNRkY/l7////39v///y4Dmn+LgeHANwDrkl1AuO+pmgAAADhlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAAGgAAAAAAAqACAAQAAAABAAAAwqADAAQAAAABAAAAwwAAAAD9b/HnAAAHlklEQVR4Ae3dP3Ik1RnG4W+FgYxN"
-                    />
+                  {/* 문제 상품 요약 */}
+                  <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded">
+                    <div className="flex items-center">
+                      <span className="text-red-600 mr-2">📊</span>
+                      <Text className="text-sm text-red-700">
+                        <strong>
+                          총 {selectedAnalysis.precision_issues.length}개 상품
+                        </strong>
+                        에서 품질 문제가 발견되었습니다. 정확도 개선을 위해
+                        검토가 필요합니다.
+                      </Text>
+                    </div>
                   </div>
                 </Card>
               )}
+
+            {/* 문제 상품이 없는 경우 */}
+            {(!selectedAnalysis?.precision_issues ||
+              selectedAnalysis.precision_issues.length === 0) && (
+              <Card className="border-l-4 border-l-green-500">
+                <div className="text-center py-4">
+                  <div className="text-4xl mb-2">✅</div>
+                  <Title level={5} className="text-green-600 mb-2">
+                    품질 문제 없음
+                  </Title>
+                  <Text className="text-green-600">
+                    이 키워드의 검색 결과에서 특별한 품질 문제가 발견되지
+                    않았습니다.
+                  </Text>
+                </div>
+              </Card>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* 스크린샷 모달 */}
+      <Modal
+        title="스크린샷 상세보기"
+        open={showScreenshotModal}
+        onCancel={() => setShowScreenshotModal(false)}
+        footer={null}
+        width={1000}
+        centered
+      >
+        {selectedScreenshot && (
+          <div className="text-center">
+            <Image
+              src={selectedScreenshot}
+              alt="스크린샷"
+              className="max-w-full"
+              style={{ maxHeight: "70vh" }}
+            />
           </div>
         )}
       </Modal>
