@@ -129,6 +129,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
               precision_reason: m.precision_reason,
               recall_reason: m.recall_reason,
               precision_issues: m.precision_issues,
+              assessment_date: m.assessment_date || null, // 평가날짜 추가
               rawData: m,
             }
           : null
@@ -169,6 +170,41 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
           </Text>
         </Space>
       ),
+    },
+    {
+      title: "평가일",
+      dataIndex: "assessment_date",
+      key: "assessment_date",
+      width: 100,
+      render: (date) => {
+        if (!date)
+          return (
+            <Text type="secondary" className="text-xs">
+              실시간
+            </Text>
+          );
+        // 날짜 형식 처리 (ISO 문자열 또는 Date 객체)
+        try {
+          const dateObj = new Date(date);
+          return (
+            <Text className="text-xs">
+              {dateObj.toLocaleDateString("ko-KR")}
+            </Text>
+          );
+        } catch (e) {
+          return (
+            <Text type="secondary" className="text-xs">
+              -
+            </Text>
+          );
+        }
+      },
+      sorter: (a, b) => {
+        if (!a.assessment_date && !b.assessment_date) return 0;
+        if (!a.assessment_date) return 1;
+        if (!b.assessment_date) return -1;
+        return new Date(a.assessment_date) - new Date(b.assessment_date);
+      },
     },
     {
       title: "NDCG@10",

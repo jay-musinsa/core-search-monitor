@@ -144,30 +144,82 @@ class RuleBasedEvaluator(BaseEvaluator):
         """카테고리 매칭 점수 계산"""
         product_name = product.get("goodsName", "").lower()
         
+        # 키워드 기반 카테고리 추론
         for category, terms in self.category_rules.items():
-            # 키워드가 카테고리와 관련있는지 확인
             if any(term in keyword for term in terms):
                 # 상품명이 같은 카테고리 용어를 포함하는지 확인
                 if any(term in product_name for term in terms):
                     return 1.0
         
-        return 0.5  # 기본 점수
+        # 부분 매칭 점수 계산
+        keyword_words = keyword.split()
+        product_words = product_name.split()
+        
+        # 공통 단어 비율 기반 점수
+        common_words = set(keyword_words) & set(product_words)
+        if keyword_words:
+            partial_score = len(common_words) / len(keyword_words)
+            return 0.3 + (partial_score * 0.4)  # 0.3 ~ 0.7 범위
+        
+        return 0.3  # 최소 기본 점수
     
     def _calculate_brand_trust_score(self, product: Dict[str, Any]) -> float:
         """브랜드 신뢰도 점수 계산"""
         product_name = product.get("goodsName", "")
         
+        # 알려진 브랜드 확인
         for brand, trust_score in self.brand_trust_scores.items():
             if brand.lower() in product_name.lower():
                 return trust_score
         
-        return 0.7  # 기본 브랜드 신뢰도
+        # 브랜드명 패턴 분석 (영어 대문자로 시작하는 단어들)
+        import re
+        brand_patterns = re.findall(r'\b[A-Z][a-z]+\b', product_name)
+        
+        if brand_patterns:
+            # 브랜드명이 있으면 중간 신뢰도
+            return 0.6 + (len(brand_patterns) * 0.05)  # 브랜드명 개수에 따라 조정
+        
+        # 한글 브랜드명 패턴 확인
+        korean_brand_patterns = re.findall(r'[가-힣]{2,4}', product_name)
+        if korean_brand_patterns:
+            return 0.55  # 한글 브랜드는 약간 낮은 신뢰도
+        
+        return 0.5  # 브랜드를 식별할 수 없는 경우 기본값
     
     def _calculate_price_reasonableness_score(self, product: Dict[str, Any]) -> float:
-        """가격 합리성 점수 계산 (예시)"""
-        # 실제로는 카테고리별 평균 가격과 비교하거나 
-        # 가격대별 분포를 고려해야 함
-        return 0.8  # 기본 점수
+        """가격 합리성 점수 계산"""
+        # 상품명 길이와 복잡도를 기반으로 가격 합리성 추정
+        product_name = product.get("goodsName", "")
+        
+        if not product_name:
+            return 0.5
+        
+        # 상품명 특성 분석
+        name_length = len(product_name)
+        has_brand = bool(re.search(r'\b[A-Z][a-z]+\b', product_name))
+        has_model = bool(re.search(r'[A-Z0-9]{2,}', product_name))
+        has_color = any(color in product_name.lower() for color in 
+                       ['black', 'white', 'red', 'blue', 'green', 'yellow', 'gray', 'brown',
+                        '검정', '흰색', '빨강', '파랑', '초록', '노랑', '회색', '갈색'])
+        has_size = any(size in product_name.lower() for size in 
+                      ['xs', 's', 'm', 'l', 'xl', 'xxl', 'free', '프리'])
+        
+        # 점수 계산 (상세한 정보가 많을수록 높은 점수)
+        score = 0.5  # 기본 점수
+        
+        if name_length > 20:  # 상세한 상품명
+            score += 0.1
+        if has_brand:  # 브랜드 정보
+            score += 0.1
+        if has_model:  # 모델명/품번
+            score += 0.1
+        if has_color:  # 색상 정보
+            score += 0.05
+        if has_size:  # 사이즈 정보
+            score += 0.05
+        
+        return min(0.9, score)  # 최대 0.9
     
     def _get_rule_details(self, keyword: str, product: Dict[str, Any]) -> Dict[str, Any]:
         """Rule 적용 상세 정보 반환"""

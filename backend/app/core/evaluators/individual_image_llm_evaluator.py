@@ -311,33 +311,106 @@ class IndividualImageLLMEvaluator(BaseEvaluator):
     def _create_simulation_result(self, keyword: str, products: List[Dict]) -> EvaluationResult:
         """시뮬레이션 결과 생성 (API 키가 없을 때)"""
         import random
+        import hashlib
+        
+        # 키워드 기반 시드 생성 (일관된 결과를 위해)
+        seed_str = f"{keyword}_{len(products)}"
+        seed = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+        random.seed(seed)
+        
+        # 키워드 복잡도에 따른 기본 성능 계산
+        keyword_complexity = self._calculate_keyword_complexity(keyword)
+        product_count = min(self.max_products, len(products))
+        
+        # 동적 메트릭 계산
+        base_ndcg = 0.6 + (keyword_complexity * 0.3)  # 0.6 ~ 0.9
+        base_precision = 0.5 + (keyword_complexity * 0.4)  # 0.5 ~ 0.9
+        base_recall = 0.4 + (keyword_complexity * 0.4)  # 0.4 ~ 0.8
+        
+        # 상품 수에 따른 조정 (더 많은 상품 = 더 어려운 평가)
+        product_difficulty = min(1.0, product_count / 50.0)  # 최대 50개 기준
+        
+        ndcg_10 = max(0.1, base_ndcg - (product_difficulty * 0.2))
+        precision = max(0.1, base_precision - (product_difficulty * 0.15))
+        recall = max(0.1, base_recall - (product_difficulty * 0.1))
+        
+        # 신뢰도는 Individual Image LLM의 특성상 높게 설정하되 동적 조정
+        confidence = 0.85 + (keyword_complexity * 0.1) - (product_difficulty * 0.05)
+        confidence = max(0.7, min(0.95, confidence))
         
         # 시뮬레이션용 precision_issues 생성
         precision_issues = []
         if products:
-            # 랜덤하게 몇 개 상품을 문제 상품으로 선정
-            problem_count = min(3, len(products) // 3)
-            problem_products = random.sample(products[:10], problem_count)
+            # 정밀도에 따라 문제 상품 수 결정
+            problem_ratio = 1.0 - precision
+            problem_count = max(1, int(min(product_count, 10) * problem_ratio))
             
-            for product in problem_products:
-                precision_issues.append({
-                    "goods_no": str(product.get("goodsNo", "N/A")),
-                    "goods_name": product.get("goodsName", "시뮬레이션 상품"),
-                    "image_url": product.get("thumbnail", "N/A"),
-                    "reason": "개별 이미지 분석 결과 관련성 낮음 (시뮬레이션)"
-                })
+            if problem_count > 0:
+                available_products = products[:min(product_count, 10)]
+                problem_products = random.sample(available_products, min(problem_count, len(available_products)))
+                
+                for i, product in enumerate(problem_products):
+                    # 다양한 시뮬레이션 이유 생성
+                    reasons = [
+                        f"상품 이미지가 '{keyword}' 키워드와 관련성 부족",
+                        f"시각적 특성이 검색 의도와 불일치",
+                        f"상품 카테고리가 '{keyword}' 검색과 맞지 않음",
+                        f"이미지 품질이 정확한 판단을 어렵게 함"
+                    ]
+                    selected_reason = reasons[i % len(reasons)]
+                    simulated_score = round(random.uniform(1.5, 2.8), 1)  # 3.0 미만 점수
+                    
+                    precision_issues.append({
+                        "goods_no": str(product.get("goodsNo", "N/A")),
+                        "goods_name": product.get("goodsName", "시뮬레이션 상품"),
+                        "image_url": product.get("thumbnail", "N/A"),
+                        "reason": f"개별 이미지 LLM 평가: {selected_reason} (관련성 점수: {simulated_score}/5.0, 시뮬레이션)"
+                    })
         
         return EvaluationResult(
             method=self.name,
-            ndcg_10=0.85,  # 시뮬레이션 값
-            precision=0.80,
-            recall=0.75,
-            confidence=0.90,  # 개별 이미지 분석은 높은 신뢰도
+            ndcg_10=round(ndcg_10, 3),
+            precision=round(precision, 3),
+            recall=round(recall, 3),
+            confidence=round(confidence, 3),
             details={
                 "simulation": True,
                 "total_products": len(products),
-                "evaluated_products": min(10, len(products)),
-                "evaluation_method": "individual_image_analysis_simulation"
+                "evaluated_products": product_count,
+                "max_products": self.max_products,
+                "keyword_complexity": keyword_complexity,
+                "evaluation_method": "individual_image_analysis_simulation",
+                "reasoning": f"키워드 '{keyword}'에 대한 {product_count}개 상품 개별 이미지 분석 시뮬레이션"
             },
             precision_issues=precision_issues
-        ) 
+        )
+    
+    def _calculate_keyword_complexity(self, keyword: str) -> float:
+        """키워드 복잡도 계산 (0.0 ~ 1.0)"""
+        if not keyword:
+            return 0.0
+        
+        complexity_factors = []
+        
+        # 1. 키워드 길이 (짧을수록 어려움)
+        length_factor = min(1.0, len(keyword) / 10.0)
+        complexity_factors.append(length_factor)
+        
+        # 2. 특수 문자/숫자 포함 여부
+        special_chars = sum(1 for c in keyword if not c.isalnum() and c != ' ')
+        special_factor = min(1.0, special_chars / 3.0)
+        complexity_factors.append(special_factor)
+        
+        # 3. 영어/한글 혼용 여부
+        has_korean = any('\uac00' <= c <= '\ud7af' for c in keyword)
+        has_english = any(c.isalpha() and ord(c) < 128 for c in keyword)
+        mixed_lang_factor = 0.8 if (has_korean and has_english) else 0.5
+        complexity_factors.append(mixed_lang_factor)
+        
+        # 4. 공백으로 구분된 단어 수
+        word_count = len(keyword.split())
+        word_factor = min(1.0, word_count / 4.0)
+        complexity_factors.append(word_factor)
+        
+        # 평균 복잡도 계산
+        return sum(complexity_factors) / len(complexity_factors) 
