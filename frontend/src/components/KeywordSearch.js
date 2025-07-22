@@ -126,24 +126,29 @@ function KeywordSearch() {
   };
 
   return (
-    <div className="p-8 bg-white min-h-[calc(100vh-52px)] max-w-[1200px] mx-auto">
-      {/* Breadcrumb */}
-      <Breadcrumb
-        className="mb-6"
-        items={[
-          {
-            title: "검색품질 모니터링",
-          },
-          {
-            title: "키워드 검색",
-          },
-        ]}
-      />
+    <div className="min-h-[calc(100vh-52px)]">
+      <div className="bg-white border-b border-gray-200 px-8 py-6">
+        {/* Breadcrumb */}
+        <Breadcrumb
+          className="mb-4"
+          items={[
+            {
+              title: "검색품질 모니터링",
+            },
+            {
+              title: "키워드 검색",
+            },
+          ]}
+        />
 
-      {/* 페이지 제목 */}
-      <Title level={1} className="typo-heading-1 mb-8">
-        Keyword Search
-      </Title>
+        {/* 페이지 제목 */}
+        <Title level={1} className="typo-heading-1 mb-0">
+          키워드 품질 상세
+        </Title>
+        <Text className="text-gray-600">키워드별 검색 품질을 실시간으로 분석합니다</Text>
+      </div>
+
+             <div className="p-8 max-w-[1400px] mx-auto">
 
       {/* 검색 섹션 */}
       <Card className="mb-10 shadow-md">
@@ -263,9 +268,10 @@ function KeywordSearch() {
         )}
       </Card>
 
-      {isModalOpen && selectedScreenshot && (
-        <ScreenshotModal screenshot={selectedScreenshot} onClose={closeModal} />
-      )}
+        {isModalOpen && selectedScreenshot && (
+          <ScreenshotModal screenshot={selectedScreenshot} onClose={closeModal} />
+        )}
+      </div>
     </div>
   );
 }

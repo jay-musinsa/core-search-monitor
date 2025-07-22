@@ -5,9 +5,11 @@ const { Content } = Layout;
 
 const GlobalContent = ({ children }) => {
   return (
-    <Content className="bg-white min-h-[calc(100vh-52px)] overflow-y-auto">
-      <div className="min-w-[1326px] h-full">
-        {children}
+    <Content className="bg-gray-50 min-h-[calc(100vh-52px)] overflow-y-auto">
+      <div className="w-full h-full">
+        <div className="max-w-none mx-auto h-full">
+          {children}
+        </div>
       </div>
     </Content>
   );

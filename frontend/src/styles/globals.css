@@ -145,8 +145,13 @@ body {
 }
 
 .ant-layout-sider {
-  background: #f8f9fa !important;
+  background: #ffffff !important;
   border-right: 1px solid var(--border-color);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.ant-layout-sider-collapsed {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
 }
 
 .ant-menu {
@@ -156,23 +161,72 @@ body {
 
 .ant-menu-item {
   border-radius: var(--border-radius) !important;
-  margin: 4px 0 !important;
-  color: var(--color-gray-800) !important;
+  margin: 2px 0 !important;
+  color: var(--color-gray-700) !important;
+  font-weight: 500 !important;
+  height: 40px !important;
+  line-height: 40px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .ant-menu-item-selected {
   background: var(--color-primary-light) !important;
   color: var(--color-primary) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 3px 0 0 var(--color-primary) !important;
 }
 
-.ant-menu-item:hover {
-  background: #e9ecef !important;
-  color: var(--color-gray-950) !important;
+.ant-menu-item:hover:not(.ant-menu-item-selected) {
+  background: #f8f9fa !important;
+  color: var(--color-gray-900) !important;
+}
+
+.ant-menu-item-disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
 }
 
 .ant-menu-item-group-title {
-  color: var(--color-gray-800) !important;
-  font-weight: 600;
+  color: var(--color-gray-600) !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  padding: 8px 16px 4px !important;
+}
+
+.ant-menu-item-divider {
+  margin: 8px 0 !important;
+  background: var(--border-color) !important;
+}
+
+/* 사이드바 접힘 애니메이션 */
+.ant-layout-sider-trigger {
+  display: none !important;
+}
+
+/* 메뉴 아이콘 스타일링 */
+.ant-menu-item .anticon {
+  font-size: 16px !important;
+  margin-right: 12px !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-layout-sider-collapsed .ant-menu-item .anticon {
+  margin-right: 0 !important;
+  font-size: 18px !important;
+}
+
+/* 툴팁 스타일 개선 */
+.ant-tooltip {
+  z-index: 1060 !important;
+}
+
+.ant-tooltip-inner {
+  background: var(--color-gray-900) !important;
+  border-radius: var(--border-radius) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
 
 .ant-btn {

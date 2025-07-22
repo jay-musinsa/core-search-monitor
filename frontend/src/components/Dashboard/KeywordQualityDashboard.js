@@ -191,45 +191,49 @@ const KeywordQualityDashboard = () => {
   };
 
   return (
-    <div className="p-8 bg-white min-h-[calc(100vh-52px)]">
-      {/* Breadcrumb */}
-      <Breadcrumb
-        className="mb-6"
-        items={[
-          {
-            title: "검색품질 모니터링",
-          },
-          {
-            title: "품질 대시보드",
-          },
-        ]}
-      />
+    <div className="min-h-[calc(100vh-52px)]">
+      <div className="bg-white border-b border-gray-200 px-8 py-6">
+        {/* Breadcrumb */}
+        <Breadcrumb
+          className="mb-4"
+          items={[
+            {
+              title: "검색품질 모니터링",
+            },
+            {
+              title: "품질 대시보드",
+            },
+          ]}
+        />
 
-      {/* 페이지 헤더 */}
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <Title level={1} className="typo-heading-1 mb-2">
-            Quality Dashboard
-          </Title>
-          <Text className="text-gray-600">검색 품질 모니터링 대시보드</Text>
+        {/* 페이지 헤더 */}
+        <div className="flex justify-between items-center">
+          <div>
+            <Title level={1} className="typo-heading-1 mb-2">
+              품질 대시보드
+            </Title>
+            <Text className="text-gray-600">검색 품질 모니터링 및 트렌드 분석</Text>
+          </div>
+
+          <Space>
+            <Button icon={<FilterOutlined />} onClick={toggleDrawer}>
+              필터
+            </Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExport}>
+              Export CSV
+            </Button>
+            <Button
+              type="primary"
+              icon={<ReloadOutlined />}
+              onClick={handleRefresh}
+            >
+              새로고침
+            </Button>
+          </Space>
         </div>
-
-        <Space>
-          <Button icon={<FilterOutlined />} onClick={toggleDrawer}>
-            필터
-          </Button>
-          <Button icon={<DownloadOutlined />} onClick={handleExport}>
-            Export CSV
-          </Button>
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={handleRefresh}
-          >
-            새로고침
-          </Button>
-        </Space>
       </div>
+
+      <div className="p-8 max-w-[1600px] mx-auto">
 
       {/* 에러 메시지 표시 */}
       {error && (
@@ -365,15 +369,17 @@ const KeywordQualityDashboard = () => {
       )}
 
       {/* 필터 드로어 */}
-      <Drawer
-        title="필터 설정"
-        placement="right"
-        onClose={() => setDrawerOpen(false)}
-        open={drawerOpen}
-        width={400}
-      >
-        <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
-      </Drawer>
+        {/* 필터 드로어 */}
+        <Drawer
+          title="필터 설정"
+          placement="right"
+          onClose={() => setDrawerOpen(false)}
+          open={drawerOpen}
+          width={400}
+        >
+          <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
+        </Drawer>
+      </div>
     </div>
   );
 };
