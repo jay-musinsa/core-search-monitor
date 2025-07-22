@@ -36,6 +36,21 @@ class Config:
     # CORS 설정
     CORS_ORIGINS: list = ["http://localhost:3000"]
     
+    # ClickHouse 설정
+    CLICKHOUSE_HOST: str = os.getenv("CLICKHOUSE_HOST", "localhost")
+    CLICKHOUSE_PORT: int = int(os.getenv("CLICKHOUSE_PORT", "8123"))
+    CLICKHOUSE_USER: str = os.getenv("CLICKHOUSE_USER", "default")
+    CLICKHOUSE_PASSWORD: str = os.getenv("CLICKHOUSE_PASSWORD", "")
+    CLICKHOUSE_DATABASE: str = os.getenv("CLICKHOUSE_DATABASE", "default")
+    
+    # Redis 설정
+    REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT: int = int(os.getenv("REDIS_PORT", "6379"))
+    REDIS_DB: int = int(os.getenv("REDIS_DB", "0"))
+    
+    # Kafka 설정
+    KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    
     @classmethod
     def get_openai_api_key(cls) -> Optional[str]:
         """OpenAI API 키 반환"""

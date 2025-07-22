@@ -1,331 +1,134 @@
 #!/usr/bin/env python3
 """
 ClickHouse 데이터베이스 초기화 스크립트
-키워드 품질평가 시스템을 위한 스키마 생성 및 초기 데이터 설정
+개발환경에서 데이터베이스 스키마를 자동으로 설정합니다.
 """
 
-import asyncio
-import clickhouse_connect
-from pathlib import Path
-import logging
-from typing import Optional
 import os
-from datetime import datetime
+import sys
+import time
+import requests
+from pathlib import Path
 
-# 로깅 설정
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# 프로젝트 루트 디렉토리를 Python path에 추가
+sys.path.append(str(Path(__file__).parent.parent))
 
-class DatabaseInitializer:
-    """ClickHouse 데이터베이스 초기화 클래스"""
+from config import Config
+
+def wait_for_clickhouse(host: str, port: int, max_retries: int = 30) -> bool:
+    """ClickHouse 서버가 준비될 때까지 대기"""
+    print(f"ClickHouse 서버 연결 대기 중... ({host}:{port})")
     
-    def __init__(self, 
-                 host: str = 'localhost',
-                 port: int = 8123,
-                 username: str = 'default',
-                 password: str = ''):
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
-        self.client: Optional[clickhouse_connect.driver.Client] = None
-        
-    async def connect(self) -> bool:
-        """ClickHouse 연결 시도"""
+    for i in range(max_retries):
         try:
-            self.client = clickhouse_connect.get_client(
-                host=self.host,
-                port=self.port,
-                username=self.username,
-                password=self.password
-            )
-            
-            # 연결 테스트
-            result = self.client.query("SELECT 1")
-            logger.info(f"ClickHouse 연결 성공: {self.host}:{self.port}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"ClickHouse 연결 실패: {e}")
-            return False
-    
-    def disconnect(self):
-        """ClickHouse 연결 종료"""
-        if self.client:
-            self.client.close()
-            logger.info("ClickHouse 연결 종료")
-    
-    async def execute_schema_file(self, schema_path: Path) -> bool:
-        """스키마 파일 실행"""
-        try:
-            if not schema_path.exists():
-                logger.error(f"스키마 파일을 찾을 수 없습니다: {schema_path}")
-                return False
-            
-            with open(schema_path, 'r', encoding='utf-8') as f:
-                schema_content = f.read()
-            
-            # SQL 문을 개별적으로 실행
-            statements = self._split_sql_statements(schema_content)
-            
-            for i, statement in enumerate(statements):
-                if statement.strip():
-                    try:
-                        logger.info(f"SQL 문 실행 중... ({i+1}/{len(statements)})")
-                        self.client.query(statement)
-                        logger.debug(f"실행 완료: {statement[:50]}...")
-                    except Exception as e:
-                        logger.error(f"SQL 문 실행 실패: {e}")
-                        logger.error(f"문제 구문: {statement[:100]}...")
-                        # 테이블 생성 실패는 무시하고 계속 진행
-                        if "already exists" not in str(e).lower():
-                            raise
-            
-            logger.info("스키마 파일 실행 완료")
-            return True
-            
-        except Exception as e:
-            logger.error(f"스키마 파일 실행 중 오류: {e}")
-            return False
-    
-    def _split_sql_statements(self, content: str) -> list:
-        """SQL 문을 개별 문장으로 분할"""
-        # 주석 제거
-        lines = []
-        for line in content.split('\n'):
-            line = line.strip()
-            if line and not line.startswith('--'):
-                lines.append(line)
-        
-        content = '\n'.join(lines)
-        
-        # 세미콜론으로 분할하되, 문자열 내부의 세미콜론은 무시
-        statements = []
-        current_statement = ""
-        in_string = False
-        escape_next = False
-        
-        for char in content:
-            if escape_next:
-                escape_next = False
-                current_statement += char
-                continue
-                
-            if char == '\\':
-                escape_next = True
-                current_statement += char
-                continue
-                
-            if char == "'" and not in_string:
-                in_string = True
-            elif char == "'" and in_string:
-                in_string = False
-            elif char == ';' and not in_string:
-                if current_statement.strip():
-                    statements.append(current_statement.strip())
-                current_statement = ""
-                continue
-            
-            current_statement += char
-        
-        # 마지막 문장 추가
-        if current_statement.strip():
-            statements.append(current_statement.strip())
-        
-        return statements
-    
-    async def verify_tables(self) -> bool:
-        """테이블 생성 확인"""
-        try:
-            expected_tables = [
-                'keyword_master',
-                'quality_assessment_daily',
-                'keyword_trends',
-                'batch_jobs',
-                'system_metrics'
-            ]
-            
-            result = self.client.query("SHOW TABLES")
-            existing_tables = [row[0] for row in result.result_rows]
-            
-            logger.info(f"생성된 테이블: {existing_tables}")
-            
-            missing_tables = set(expected_tables) - set(existing_tables)
-            if missing_tables:
-                logger.warning(f"누락된 테이블: {missing_tables}")
-                return False
-            
-            # 각 테이블의 구조 확인
-            for table in expected_tables:
-                try:
-                    result = self.client.query(f"DESCRIBE {table}")
-                    logger.info(f"{table} 테이블 구조: {len(result.result_rows)} 컬럼")
-                except Exception as e:
-                    logger.error(f"{table} 테이블 구조 확인 실패: {e}")
-                    return False
-            
-            logger.info("모든 테이블 생성 및 구조 확인 완료")
-            return True
-            
-        except Exception as e:
-            logger.error(f"테이블 확인 중 오류: {e}")
-            return False
-    
-    async def insert_sample_data(self) -> bool:
-        """샘플 데이터 삽입"""
-        try:
-            # 기존 데이터 확인
-            result = self.client.query("SELECT COUNT(*) FROM keyword_master")
-            existing_count = result.result_rows[0][0]
-            
-            if existing_count > 0:
-                logger.info(f"기존 키워드 데이터 {existing_count}개 확인")
+            response = requests.get(f"http://{host}:{port}/ping", timeout=5)
+            if response.status_code == 200:
+                print("✅ ClickHouse 서버 연결 성공!")
                 return True
-            
-            # 샘플 키워드 데이터
-            sample_keywords = [
-                (1, '원피스', 'clothing', 1),
-                (2, '청바지', 'clothing', 1),
-                (3, '운동화', 'shoes', 1),
-                (4, '백팩', 'bags', 2),
-                (5, '시계', 'accessories', 2),
-                (6, '후드티', 'clothing', 1),
-                (7, '스니커즈', 'shoes', 1),
-                (8, '크로스백', 'bags', 2),
-                (9, '반지', 'accessories', 3),
-                (10, '모자', 'accessories', 2)
-            ]
-            
-            # 데이터 삽입
-            self.client.insert(
-                'keyword_master',
-                sample_keywords,
-                column_names=['id', 'keyword', 'category', 'priority']
-            )
-            
-            logger.info(f"샘플 키워드 데이터 {len(sample_keywords)}개 삽입 완료")
-            
-            # 샘플 배치 작업 데이터
-            sample_batch = [(
-                'init_batch_001',
-                'system_init',
-                'completed',
-                10,
-                10,
-                0,
-                datetime.now(),
-                datetime.now(),
-                datetime.now(),
-                '',
-                'Database initialization completed',
-                0.0,
-                0,
-                0.0
-            )]
-            
-            self.client.insert(
-                'batch_jobs',
-                sample_batch,
-                column_names=[
-                    'batch_id', 'job_type', 'status', 'total_keywords',
-                    'processed_keywords', 'failed_keywords', 'scheduled_at',
-                    'started_at', 'completed_at', 'error_message', 'log_data',
-                    'avg_processing_time', 'gpt_api_calls', 'gpt_api_cost'
-                ]
-            )
-            
-            logger.info("샘플 배치 작업 데이터 삽입 완료")
-            return True
-            
-        except Exception as e:
-            logger.error(f"샘플 데이터 삽입 실패: {e}")
-            return False
+        except requests.exceptions.RequestException:
+            pass
+        
+        print(f"재시도 중... ({i+1}/{max_retries})")
+        time.sleep(2)
     
-    async def test_views(self) -> bool:
-        """뷰 생성 및 테스트"""
-        try:
-            # 각 뷰 테스트
-            views = [
-                'v_keyword_latest_scores',
-                'v_daily_performance_summary',
-                'v_anomaly_alerts'
-            ]
-            
-            for view in views:
-                try:
-                    result = self.client.query(f"SELECT * FROM {view} LIMIT 5")
-                    logger.info(f"{view} 뷰 테스트 완료: {len(result.result_rows)} 행")
-                except Exception as e:
-                    logger.error(f"{view} 뷰 테스트 실패: {e}")
-                    return False
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"뷰 테스트 중 오류: {e}")
-            return False
+    print("❌ ClickHouse 서버 연결 실패")
+    return False
 
-
-async def main():
-    """메인 실행 함수"""
-    logger.info("ClickHouse 데이터베이스 초기화 시작")
-    
-    # 환경 변수에서 설정 읽기
-    db_config = {
-        'host': os.getenv('CLICKHOUSE_HOST', 'localhost'),
-        'port': int(os.getenv('CLICKHOUSE_PORT', '8123')),
-        'username': os.getenv('CLICKHOUSE_USER', 'default'),
-        'password': os.getenv('CLICKHOUSE_PASSWORD', '')
-    }
-    
-    # 데이터베이스 초기화
-    initializer = DatabaseInitializer(**db_config)
-    
+def execute_sql_file(host: str, port: int, user: str, password: str, sql_file_path: str) -> bool:
+    """SQL 파일을 실행"""
     try:
-        # 1. 연결 시도
-        if not await initializer.connect():
-            logger.error("데이터베이스 연결 실패")
-            return False
+        with open(sql_file_path, 'r', encoding='utf-8') as f:
+            sql_content = f.read()
         
-        # 2. 스키마 파일 실행
-        schema_path = Path(__file__).parent / 'schema.sql'
-        if not await initializer.execute_schema_file(schema_path):
-            logger.error("스키마 생성 실패")
-            return False
+        # SQL 문을 세미콜론으로 분리하여 각각 실행
+        # 주석과 빈 줄을 제거하되, 라인별로 처리
+        processed_lines = []
+        for line in sql_content.split('\n'):
+            line = line.strip()
+            # 빈 줄이나 주석으로 시작하는 줄 제거
+            if line and not line.startswith('--'):
+                # 라인 끝의 인라인 주석 제거
+                if ' --' in line:
+                    line = line.split(' --')[0].strip()
+                if line:
+                    processed_lines.append(line)
         
-        # 3. 테이블 확인
-        if not await initializer.verify_tables():
-            logger.error("테이블 확인 실패")
-            return False
+        # 다시 합치고 세미콜론으로 분리
+        cleaned_content = '\n'.join(processed_lines)
+        sql_statements = []
+        current_statement = ""
         
-        # 4. 샘플 데이터 삽입
-        if not await initializer.insert_sample_data():
-            logger.error("샘플 데이터 삽입 실패")
-            return False
+        for line in cleaned_content.split('\n'):
+            current_statement += " " + line
+            if line.rstrip().endswith(';'):
+                stmt = current_statement.strip()
+                if stmt and len(stmt) > 10:  # 최소 길이 체크
+                    sql_statements.append(stmt)
+                current_statement = ""
         
-        # 5. 뷰 테스트
-        if not await initializer.test_views():
-            logger.error("뷰 테스트 실패")
-            return False
+        # 마지막 문장이 세미콜론으로 끝나지 않은 경우
+        if current_statement.strip():
+            stmt = current_statement.strip()
+            if stmt and len(stmt) > 10:
+                sql_statements.append(stmt)
         
-        logger.info("데이터베이스 초기화 완료!")
+        for i, statement in enumerate(sql_statements):
+            if not statement:
+                continue
+                
+            print(f"SQL 문 실행 중... ({i+1}/{len(sql_statements)})")
+            
+            auth = (user, password) if password else None
+            response = requests.post(
+                f"http://{host}:{port}/",
+                data=statement,
+                auth=auth,
+                timeout=30
+            )
+            
+            if response.status_code != 200:
+                print(f"❌ SQL 실행 실패: {response.text}")
+                return False
+        
+        print("✅ 모든 SQL 문 실행 완료!")
         return True
         
     except Exception as e:
-        logger.error(f"초기화 중 예외 발생: {e}")
+        print(f"❌ SQL 파일 실행 중 오류: {e}")
         return False
-    
-    finally:
-        initializer.disconnect()
 
+def main():
+    """메인 함수"""
+    print("🚀 ClickHouse 데이터베이스 초기화 시작...")
+    
+    # 설정 로드
+    config = Config()
+    
+    # ClickHouse 서버 대기
+    if not wait_for_clickhouse(config.CLICKHOUSE_HOST, config.CLICKHOUSE_PORT):
+        sys.exit(1)
+    
+    # 스키마 파일 경로
+    current_dir = Path(__file__).parent
+    schema_file = current_dir / "schema.sql"
+    
+    if not schema_file.exists():
+        print(f"❌ 스키마 파일을 찾을 수 없습니다: {schema_file}")
+        sys.exit(1)
+    
+    # 스키마 실행
+    print("📋 데이터베이스 스키마 생성 중...")
+    if execute_sql_file(
+        config.CLICKHOUSE_HOST,
+        config.CLICKHOUSE_PORT,
+        config.CLICKHOUSE_USER,
+        config.CLICKHOUSE_PASSWORD,
+        str(schema_file)
+    ):
+        print("🎉 데이터베이스 초기화 완료!")
+    else:
+        print("❌ 데이터베이스 초기화 실패!")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    success = asyncio.run(main())
-    if success:
-        logger.info("✅ 데이터베이스 초기화 성공")
-    else:
-        logger.error("❌ 데이터베이스 초기화 실패")
-        exit(1)
+    main()

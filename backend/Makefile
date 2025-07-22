@@ -1,11 +1,15 @@
 # Makefile for Backend Integration Testing
 
-.PHONY: help install test test-unit test-integration test-all docker-test docker-build docker-clean lint format type-check security-check clean
+.PHONY: help install test test-unit test-integration test-all docker-test docker-build docker-clean lint format type-check security-check clean dev-setup dev-start dev-stop init-db
 
 # 기본 타겟
 help:
 	@echo "Available commands:"
 	@echo "  install           - Install dependencies"
+	@echo "  dev-setup         - Setup development environment"
+	@echo "  dev-start         - Start development services"
+	@echo "  dev-stop          - Stop development services"
+	@echo "  init-db           - Initialize ClickHouse database"
 	@echo "  test             - Run all tests"
 	@echo "  test-unit        - Run unit tests only"
 	@echo "  test-integration - Run integration tests only"
@@ -23,6 +27,30 @@ help:
 install:
 	pip install -r requirements.txt
 	pip install -r requirements-test.txt
+
+# 개발환경 설정
+dev-setup: install
+	@echo "Setting up development environment..."
+	@cd .. && docker-compose -f docker-compose.dev.yml up -d
+	@sleep 10
+	@echo "Initializing ClickHouse database..."
+	@python database/init_db.py
+	@echo "Development environment setup complete!"
+
+# 개발 서비스 시작
+dev-start:
+	@echo "Starting development services..."
+	@cd .. && docker-compose -f docker-compose.dev.yml up -d
+
+# 개발 서비스 종료
+dev-stop:
+	@echo "Stopping development services..."
+	@cd .. && docker-compose -f docker-compose.dev.yml down
+
+# ClickHouse 데이터베이스 초기화
+init-db:
+	@echo "Initializing ClickHouse database..."
+	@python database/init_db.py
 
 # 단위 테스트 실행
 test-unit:

@@ -38,6 +38,16 @@ services:
       - "9000:9000"
     environment:
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: default
+    volumes:
+      - ./backend/infrastructure/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - clickhouse-data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Kafka UI (개발 편의성)
   kafka-ui:
@@ -61,3 +71,4 @@ services:
 
 volumes:
   redis-insight:
+  clickhouse-data:
