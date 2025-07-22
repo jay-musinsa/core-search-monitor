@@ -12,8 +12,15 @@ export async function getMetrics() {
 export function subscribeMetrics(onMessage) {
   const ws = new WebSocket("ws://localhost:8000/ws");
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    onMessage(data);
+    try {
+      const data = JSON.parse(event.data);
+      console.log("[WebSocket] 메시지 수신:", data);
+
+      // 모든 메시지 타입을 onMessage 콜백으로 전달
+      onMessage(data);
+    } catch (error) {
+      console.error("[WebSocket] 메시지 파싱 오류:", error);
+    }
   };
   return ws;
 }
@@ -305,11 +312,19 @@ export const subscribeQualityUpdates = (callback) => {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.type === "quality_update") {
+      console.log("[WebSocket] 메시지 수신:", data);
+
+      // 기존 메시지 타입들
+      if (data.type === "status") {
+        callback(data);
+      } else if (data.type === "metric_update") {
+        callback(data);
+      } else if (data.type === "evaluation_complete") {
+        // 평가 완료 알림 - 검색 결과 자동 업데이트
         callback(data);
       }
     } catch (error) {
-      console.error("WebSocket 메시지 파싱 실패:", error);
+      console.error("[WebSocket] 메시지 파싱 오류:", error);
     }
   };
 

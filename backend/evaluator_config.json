@@ -1,0 +1,8 @@
+{
+  "individual_image_llm": {
+    "enabled": true,
+    "weight": 0.2,
+    "confidence_threshold": 0.5,
+    "max_products": 25
+  }
+}

@@ -28,7 +28,21 @@ CREATE TABLE IF NOT EXISTS quality_assessment_daily (
     api_status_code UInt16,
     api_response_data String, -- JSON 형태로 저장
     
-    -- GPT 평가 결과
+    -- 다중 평가 시스템 결과 (기존 GPT 필드 확장)
+    ndcg_score Float32,
+    precision_score Float32,
+    recall_score Float32,
+    confidence_score Float32,
+    evaluation_method String, -- 'Composite', 'LLM-gpt-4o', 'Rule-Based', etc.
+    evaluation_details String, -- JSON 형태로 상세 평가 정보 저장
+    
+    -- 평가 이유 및 문제점
+    ndcg_reason String,
+    precision_reason String,
+    recall_reason String,
+    precision_issues String, -- JSON 형태로 문제 상품 목록 저장
+    
+    -- 기존 GPT 필드들 (하위 호환성 유지)
     gpt_ndcg_score Float32,
     gpt_precision Float32,
     gpt_recall Float32,

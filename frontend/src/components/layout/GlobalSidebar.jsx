@@ -122,10 +122,10 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
   const CustomTrigger = () => (
     <div 
       className={`
-        flex items-center justify-center w-full h-12 
-        bg-white border-t border-gray-300 cursor-pointer
+        flex items-center justify-center w-full min-h-[48px] py-3
+        bg-white border-t border-gray-200 cursor-pointer
         hover:bg-gray-50 transition-colors duration-200
-        ${collapsed ? 'px-0' : 'px-4'}
+        ${collapsed ? 'px-2' : 'px-4'}
       `}
       onClick={() => setCollapsed(!collapsed)}
     >
@@ -150,12 +150,18 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
       collapsedWidth={64}
       theme="light"
       className={`
-        !bg-white border-r border-gray-300 h-[calc(100vh-52px)] 
+        !bg-white border-r border-gray-200 
         transition-all duration-300 ease-in-out
         ${collapsed ? 'shadow-sm' : 'shadow-none'}
       `}
+      style={{
+        height: '100vh',
+        position: 'sticky',
+        top: 0,
+        overflow: 'hidden'
+      }}
     >
-      <div className={`${collapsed ? 'p-2' : 'p-4'} flex flex-col h-full`}>
+              <div className={`${collapsed ? 'p-2' : 'p-4'} flex flex-col h-full`} style={{ paddingTop: '52px' }}>
         {/* 로고/브랜드 영역 */}
         {!collapsed && (
           <div className="mb-6 pb-4 border-b border-gray-200">
@@ -172,14 +178,14 @@ const GlobalSidebar = ({ activeTab, onTabChange }) => {
         )}
 
         {/* 메뉴 영역 */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
           <Menu
             mode="inline"
             selectedKeys={[activeTab]}
             defaultOpenKeys={collapsed ? [] : ['search-quality', 'system']}
             items={collapsed ? collapsedMenuItems : expandedMenuItems}
             className={`
-              border-none bg-transparent
+              border-none bg-transparent h-full
               ${collapsed ? '!w-full' : ''}
             `}
             inlineIndent={collapsed ? 0 : 24}

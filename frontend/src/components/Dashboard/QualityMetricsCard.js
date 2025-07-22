@@ -1,18 +1,17 @@
 import React from "react";
-import { Card, Statistic } from "antd";
+import { Card, Statistic, Typography } from "antd";
+import { safeToFixed, safeToPercent, safeNumber } from "../../utils/formatters";
+
+const { Text } = Typography;
+
+const formatValue = (value, type = "number") => {
+  if (type === "percentage") {
+    return safeToPercent(value, 1);
+  }
+  return safeToFixed(value, 3);
+};
 
 const QualityMetricsCard = ({ title, value, format, color }) => {
-  const formatValue = (value, format) => {
-    if (format === "decimal") {
-      return value.toFixed(3);
-    } else if (format === "percentage") {
-      return `${(value * 100).toFixed(1)}%`;
-    } else if (format === "integer") {
-      return value.toLocaleString();
-    }
-    return value;
-  };
-
   return (
     <Card>
       <Statistic

@@ -146,8 +146,8 @@ async def quality_websocket_endpoint(websocket: WebSocket):
 async def get_quality_dashboard_data(
     platform: str = Query("all", description="플랫폼 필터"),
     category: str = Query("all", description="카테고리 필터"),
-    dateRange: str = Query("7d", description="날짜 범위"),
-    threshold: float = Query(0.5, ge=0, le=1, description="품질 임계값"),
+    dateRange: Optional[str] = Query(None, description="날짜 범위 (예: 7d, 30d)"),
+    threshold: Optional[float] = Query(None, ge=0, le=1, description="품질 임계값 (0-1)"),
     showAnomalies: bool = Query(False, description="이상치만 표시"),
     showRecentOnly: bool = Query(False, description="최근 데이터만"),
     showHighPriority: bool = Query(False, description="고우선순위만"),
@@ -163,13 +163,13 @@ async def get_quality_dashboard_data(
         )
         # 정렬 필드 매핑
         sort_map = {
-            "ndcg_score": "gpt_ndcg_score",
-            "precision": "gpt_precision",
-            "recall": "gpt_recall",
+            "ndcg_score": "ndcg_score",
+            "precision": "precision_score", 
+            "recall": "recall_score",
             "assessment_date": "assessment_date",
             "keyword": "km.keyword"
         }
-        order_by_field = sort_map.get(sortBy, "gpt_ndcg_score")
+        order_by_field = sort_map.get(sortBy, "ndcg_score")
         # 키워드 정렬인 경우 테이블 별칭 없이 처리
         if sortBy == "keyword":
             order_by = order_by_field
@@ -182,15 +182,19 @@ async def get_quality_dashboard_data(
         if platform != "all":
             where.append("qad.platform = %(platform)s")
             params['platform'] = platform
-        if threshold > 0:
-            where.append("qad.gpt_ndcg_score >= %(threshold)s")
+        if threshold is not None:
+            where.append("qad.ndcg_score >= %(threshold)s")
             params['threshold'] = threshold
         # 날짜 필터 (dateRange)
-        if dateRange.endswith('d'):
+        if dateRange and dateRange.endswith('d'):
             days = int(dateRange[:-1])
             where.append("qad.assessment_date >= today() - %(days)s")
             params['days'] = days
-        # 쿼리 조립
+        
+        # where 절이 비어있으면 기본 조건 추가
+        if not where:
+            where.append("1=1")
+        
         where_clause = " AND ".join(where)
         query = f'''
             SELECT
@@ -199,12 +203,19 @@ async def get_quality_dashboard_data(
                 km.keyword,
                 qad.platform,
                 qad.assessment_date,
-                qad.gpt_ndcg_score,
-                qad.gpt_precision,
-                qad.gpt_recall,
+                qad.ndcg_score,
+                qad.precision_score,
+                qad.recall_score,
+                qad.confidence_score,
+                qad.evaluation_method,
                 qad.screenshot_path,
                 qad.api_total_results,
-                qad.processing_time
+                qad.processing_time,
+                qad.ndcg_reason,
+                qad.precision_reason,
+                qad.recall_reason,
+                qad.precision_issues,
+                qad.evaluation_details
             FROM quality_assessment_daily qad
             LEFT JOIN keyword_master km ON qad.keyword_id = km.id
             WHERE {where_clause}
@@ -216,14 +227,56 @@ async def get_quality_dashboard_data(
         result = client.query(query, params)
         rows = result.result_rows
         columns = result.column_names
-        data = [dict(zip(columns, row)) for row in rows]
+        # 응답 데이터 구성
+        data = []
+        for row in rows:
+            try:
+                # precision_issues와 evaluation_details JSON 파싱
+                precision_issues = []
+                evaluation_details = {}
+                
+                try:
+                    if row[16]:  # precision_issues
+                        precision_issues = json.loads(row[16])
+                except (json.JSONDecodeError, TypeError):
+                    precision_issues = []
+                
+                try:
+                    if row[17]:  # evaluation_details
+                        evaluation_details = json.loads(row[17])
+                except (json.JSONDecodeError, TypeError):
+                    evaluation_details = {}
+                
+                data.append({
+                    "id": row[0],
+                    "keyword_id": row[1],
+                    "keyword": row[2] if row[2] else "Unknown",
+                    "platform": row[3],
+                    "assessment_date": row[4].strftime('%Y-%m-%d') if row[4] else None,
+                    "ndcg_score": float(row[5]) if row[5] is not None else 0.0,
+                    "precision": float(row[6]) if row[6] is not None else 0.0,
+                    "recall": float(row[7]) if row[7] is not None else 0.0,
+                    "confidence": float(row[8]) if row[8] is not None else 0.0,
+                    "evaluation_method": row[9] if row[9] else "unknown",
+                    "screenshot_path": row[10] if row[10] else "",
+                    "api_total_results": int(row[11]) if row[11] is not None else 0,
+                    "processing_time": float(row[12]) if row[12] is not None else 0.0,
+                    "ndcg_reason": row[13] if row[13] else "",
+                    "precision_reason": row[14] if row[14] else "",
+                    "recall_reason": row[15] if row[15] else "",
+                    "precision_issues": precision_issues,
+                    "evaluation_details": evaluation_details
+                })
+            except Exception as e:
+                logger.error(f"데이터 처리 중 오류: {e}, row: {row}")
+                continue
         # 요약 통계
         if data:
             summary = {
                 "totalKeywords": len(data),
-                "avgNdcgScore": sum(d["gpt_ndcg_score"] for d in data) / len(data),
-                "avgPrecision": sum(d["gpt_precision"] for d in data) / len(data),
-                "avgRecall": sum(d["gpt_recall"] for d in data) / len(data),
+                "avgNdcgScore": sum(d["ndcg_score"] for d in data) / len(data),
+                "avgPrecision": sum(d["precision"] for d in data) / len(data),
+                "avgRecall": sum(d["recall"] for d in data) / len(data),
                 "anomalyCount": 0,
                 "lastUpdated": datetime.now().isoformat()
             }
@@ -251,7 +304,7 @@ async def get_quality_dashboard_data(
 @router.get("/trend/data", response_model=TrendDataResponse)
 async def get_trend_data(
     platform: str = Query("all", description="플랫폼 필터"),
-    dateRange: str = Query("7d", description="날짜 범위"),
+    dateRange: Optional[str] = Query(None, description="날짜 범위 (예: 7d, 30d)"),
     trend_analyzer: TrendAnalyzer = Depends(get_trend_analyzer)
 ):
     """ClickHouse 기반 실제 트렌드 데이터 조회"""
@@ -260,13 +313,19 @@ async def get_trend_data(
             host='localhost', port=8123, username='default', password=''
         )
         
-        # 날짜 범위에 따른 일 수 결정
-        days_map = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
-        days = days_map.get(dateRange, 7)
+        # 날짜 범위에 따른 일 수 결정 (기본값: 전체 데이터)
+        days = None
+        if dateRange:
+            days_map = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+            days = days_map.get(dateRange, None)
         
         # 필터 조건 구성
-        where = ["qad.assessment_date >= today() - %(days)s"]
-        params = {'days': days}
+        where = []
+        params = {}
+        
+        if days is not None:
+            where.append("qad.assessment_date >= today() - %(days)s")
+            params['days'] = days
         
         if platform != "all":
             where.append("qad.platform = %(platform)s")
@@ -279,9 +338,9 @@ async def get_trend_data(
             SELECT 
                 qad.assessment_date as date,
                 qad.platform,
-                avg(qad.gpt_ndcg_score) as ndcg_score,
-                avg(qad.gpt_precision) as precision,
-                avg(qad.gpt_recall) as recall,
+                avg(qad.ndcg_score) as ndcg_score,
+                avg(qad.precision_score) as precision,
+                avg(qad.recall_score) as recall,
                 avg(qad.processing_time) as processing_time,
                 avg(qad.api_response_time) as api_response_time,
                 count(*) as total_assessments

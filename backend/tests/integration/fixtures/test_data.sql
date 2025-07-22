@@ -17,6 +17,9 @@ INSERT INTO keyword_master (id, keyword, category, priority, is_active, created_
 INSERT INTO quality_assessment_daily (
     id, keyword_id, assessment_date, platform,
     api_response_time, api_total_results, api_status_code, api_response_data,
+    ndcg_score, precision_score, recall_score, confidence_score,
+    evaluation_method, evaluation_details,
+    ndcg_reason, precision_reason, recall_reason, precision_issues,
     gpt_ndcg_score, gpt_precision, gpt_recall, gpt_relevance_score, 
     gpt_evaluation_text, gpt_confidence_score,
     screenshot_path, screenshot_size, screenshot_quality,
@@ -24,14 +27,20 @@ INSERT INTO quality_assessment_daily (
 ) VALUES
 -- 최근 데이터 (오늘)
 (1, 1, today(), 'musinsa', 1.2, 50, 200, '{"total": 50, "products": []}',
+ 0.85, 0.80, 0.75, 0.90, 'Composite', '{"individual_results": {"llm": {"ndcg_10": 0.85}}, "weighting_strategy": "confidence_weighted"}',
+ '검색 결과가 키워드와 관련성이 높음', '정확도가 우수함', '재현율이 양호함', '[{"goods_no": "123", "goods_name": "테스트상품", "reason": "테스트"}]',
  0.85, 0.80, 0.75, 0.82, '검색 결과가 키워드와 관련성이 높음', 0.90,
  '/screenshots/test_1.png', 1024, 'high', 3.5, 'test_batch_001', 0, '', now()),
 
 (2, 1, today(), '29cm', 1.5, 45, 200, '{"total": 45, "products": []}',
+ 0.78, 0.75, 0.70, 0.85, 'LLM-gpt-4o', '{"model": "gpt-4o", "provider": "openai", "evaluation_type": "screenshot_only"}',
+ '검색 결과 양호함', '정확도 보통', '재현율 보통', '[{"goods_no": "124", "goods_name": "테스트상품2", "reason": "관련성 낮음"}]',
  0.78, 0.75, 0.70, 0.77, '검색 결과 양호함', 0.85,
  '/screenshots/test_2.png', 1156, 'high', 3.2, 'test_batch_001', 0, '', now()),
 
 (3, 2, today(), 'musinsa', 1.1, 60, 200, '{"total": 60, "products": []}',
+ 0.92, 0.88, 0.85, 0.95, 'Composite', '{"individual_results": {"rule_based": {"ndcg_10": 0.90}, "llm": {"ndcg_10": 0.94}}, "weighting_strategy": "confidence_weighted"}',
+ '매우 우수한 검색 결과', '정확도 매우 높음', '재현율 우수', '[]',
  0.92, 0.88, 0.85, 0.90, '매우 우수한 검색 결과', 0.95,
  '/screenshots/test_3.png', 1200, 'high', 2.8, 'test_batch_001', 0, '', now()),
 

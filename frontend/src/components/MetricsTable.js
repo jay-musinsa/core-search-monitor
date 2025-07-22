@@ -12,6 +12,7 @@ import {
   Badge,
 } from "antd";
 import { EyeOutlined, PictureOutlined } from "@ant-design/icons";
+import { safeToFixed, safeToPercent, safeNumber } from "../utils/formatters";
 
 const { Text, Title } = Typography;
 const BACKEND_URL = "http://localhost:8000";
@@ -19,6 +20,9 @@ const BACKEND_URL = "http://localhost:8000";
 export default function MetricsTable({ metrics, onScreenshotClick }) {
   const [selectedAnalysis, setSelectedAnalysis] = useState(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+
+  console.log("MetricsTable이 받은 metrics:", metrics);
+  console.log("metrics 키 개수:", Object.keys(metrics || {}).length);
 
   if (!metrics || Object.keys(metrics).length === 0) {
     return (
@@ -48,6 +52,32 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
     if (score >= 0.6) return "양호";
     if (score >= 0.4) return "보통";
     return "미흡";
+  };
+
+  const getConfidenceColor = (confidence) => {
+    if (confidence >= 0.8) return "#52c41a";
+    if (confidence >= 0.6) return "#1890ff";
+    if (confidence >= 0.4) return "#faad14";
+    return "#f5222d";
+  };
+
+  const getEvaluationMethodBadge = (method, confidence) => {
+    const color = getConfidenceColor(confidence);
+    const methodNames = {
+      Composite: "종합",
+      "LLM-gpt-4o": "GPT-4",
+      "Rule-Based": "규칙",
+      "Keyword-Based": "키워드",
+      "Embedding-sentence-transformers": "임베딩",
+    };
+
+    return (
+      <Badge
+        color={color}
+        text={methodNames[method] || method}
+        style={{ fontSize: "12px" }}
+      />
+    );
   };
 
   const handleAnalysisClick = (keyword, platform, data) => {
@@ -82,22 +112,28 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
     [
       ["musinsa", platforms.musinsa],
       ["29cm", platforms["29cm"]],
-    ].map(([platformKey, m]) =>
-      m ? {
-        key: keyword + platformKey,
-        keyword,
-        platform: platformKey,
-        ndcg: m["ndcg@10"] || 0,
-        precision: m.precision || 0,
-        recall: m.recall || 0,
-        screenshot: m.screenshot,
-        ndcg_reason: m.ndcg_reason,
-        precision_reason: m.precision_reason,
-        recall_reason: m.recall_reason,
-        precision_issues: m.precision_issues,
-        rawData: m,
-      } : null
-    ).filter(Boolean)
+    ]
+      .map(([platformKey, m]) =>
+        m
+          ? {
+              key: keyword + platformKey,
+              keyword,
+              platform: platformKey,
+              ndcg: m["ndcg@10"] || 0,
+              precision: m.precision || 0,
+              recall: m.recall || 0,
+              confidence: m.confidence || 0,
+              evaluation_method: m.evaluation_method || "unknown",
+              screenshot: m.screenshot,
+              ndcg_reason: m.ndcg_reason,
+              precision_reason: m.precision_reason,
+              recall_reason: m.recall_reason,
+              precision_issues: m.precision_issues,
+              rawData: m,
+            }
+          : null
+      )
+      .filter(Boolean)
   );
 
   // 테이블 컬럼
@@ -121,22 +157,37 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
       render: (platform) => getPlatformTag(platform),
     },
     {
+      title: "평가 방법",
+      dataIndex: "evaluation_method",
+      key: "evaluation_method",
+      width: 120,
+      render: (method, record) => (
+        <Space direction="vertical" size="small">
+          {getEvaluationMethodBadge(method, record.confidence)}
+          <Text className="text-xs text-gray-500">
+            신뢰도: {safeToPercent(record.confidence, 0)}
+          </Text>
+        </Space>
+      ),
+    },
+    {
       title: "NDCG@10",
       dataIndex: "ndcg",
       key: "ndcg",
       width: 120,
       render: (value, record) => (
         <Space direction="vertical" size="small">
-          <Tag color={getScoreColor(value)} className="font-semibold w-16 text-center">
-            {value.toFixed(3)}
+          <Tag
+            color={getScoreColor(value)}
+            className="font-semibold w-16 text-center"
+          >
+            {safeToFixed(value, 3)}
           </Tag>
-          <Text className="text-xs text-gray-500">
-            {getScoreLabel(value)}
-          </Text>
+          <Text className="text-xs text-gray-500">{getScoreLabel(value)}</Text>
           {record.ndcg_reason && (
             <Tooltip title={record.ndcg_reason}>
               <Text className="text-xs text-gray-400 italic cursor-help">
-                {record.ndcg_reason.length > 20 
+                {record.ndcg_reason.length > 20
                   ? record.ndcg_reason.substring(0, 20) + "..."
                   : record.ndcg_reason}
               </Text>
@@ -152,16 +203,17 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
       width: 120,
       render: (value, record) => (
         <Space direction="vertical" size="small">
-          <Tag color={getScoreColor(value)} className="font-semibold w-16 text-center">
-            {value.toFixed(3)}
+          <Tag
+            color={getScoreColor(value)}
+            className="font-semibold w-16 text-center"
+          >
+            {safeToFixed(value, 3)}
           </Tag>
-          <Text className="text-xs text-gray-500">
-            {getScoreLabel(value)}
-          </Text>
+          <Text className="text-xs text-gray-500">{getScoreLabel(value)}</Text>
           {record.precision_reason && (
             <Tooltip title={record.precision_reason}>
               <Text className="text-xs text-gray-400 italic cursor-help">
-                {record.precision_reason.length > 20 
+                {record.precision_reason.length > 20
                   ? record.precision_reason.substring(0, 20) + "..."
                   : record.precision_reason}
               </Text>
@@ -177,16 +229,17 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
       width: 120,
       render: (value, record) => (
         <Space direction="vertical" size="small">
-          <Tag color={getScoreColor(value)} className="font-semibold w-16 text-center">
-            {value.toFixed(3)}
+          <Tag
+            color={getScoreColor(value)}
+            className="font-semibold w-16 text-center"
+          >
+            {safeToFixed(value, 3)}
           </Tag>
-          <Text className="text-xs text-gray-500">
-            {getScoreLabel(value)}
-          </Text>
+          <Text className="text-xs text-gray-500">{getScoreLabel(value)}</Text>
           {record.recall_reason && (
             <Tooltip title={record.recall_reason}>
               <Text className="text-xs text-gray-400 italic cursor-help">
-                {record.recall_reason.length > 20 
+                {record.recall_reason.length > 20
                   ? record.recall_reason.substring(0, 20) + "..."
                   : record.recall_reason}
               </Text>
@@ -201,16 +254,14 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
       key: "screenshot",
       width: 100,
       align: "center",
-      render: (screenshot, record) => (
+      render: (screenshot, record) =>
         screenshot ? (
-          <div 
+          <div
             className="cursor-pointer hover:scale-105 transition-transform"
             onClick={() =>
               onScreenshotClick({
                 url: `${BACKEND_URL}${
-                  screenshot.startsWith("/")
-                    ? screenshot
-                    : "/" + screenshot
+                  screenshot.startsWith("/") ? screenshot : "/" + screenshot
                 }`,
                 keyword: record.keyword,
                 platform: record.platform === "musinsa" ? "무신사" : "29CM",
@@ -221,9 +272,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
               width={60}
               height={60}
               src={`${BACKEND_URL}${
-                screenshot.startsWith("/")
-                  ? screenshot
-                  : "/" + screenshot
+                screenshot.startsWith("/") ? screenshot : "/" + screenshot
               }`}
               alt={`${record.keyword} ${record.platform} 스크린샷`}
               className="rounded border border-gray-200 object-cover"
@@ -235,8 +284,7 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
             <PictureOutlined className="text-gray-400 mb-1" />
             <Text className="text-xs text-gray-400">없음</Text>
           </div>
-        )
-      ),
+        ),
     },
     {
       title: "상세 분석",
@@ -249,7 +297,9 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
           type="primary"
           ghost
           icon={<EyeOutlined />}
-          onClick={() => handleAnalysisClick(record.keyword, record.platform, record.rawData)}
+          onClick={() =>
+            handleAnalysisClick(record.keyword, record.platform, record.rawData)
+          }
           className="flex items-center gap-1"
         >
           자세히 보기
@@ -274,7 +324,13 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
 
       {/* 분석 모달 */}
       <Modal
-        title={selectedAnalysis ? `상세 분석 - ${selectedAnalysis.keyword} (${selectedAnalysis.platform === "musinsa" ? "무신사" : "29CM"})` : ""}
+        title={
+          selectedAnalysis
+            ? `상세 분석 - ${selectedAnalysis.keyword} (${
+                selectedAnalysis.platform === "musinsa" ? "무신사" : "29CM"
+              })`
+            : ""
+        }
         open={showAnalysisModal}
         onCancel={closeAnalysisModal}
         footer={null}
@@ -292,8 +348,11 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                   <Text strong className="min-w-[80px] text-gray-600">
                     NDCG@10:
                   </Text>
-                  <Tag color={getScoreColor(selectedAnalysis.data["ndcg@10"] || 0)} className="font-semibold">
-                    {(selectedAnalysis.data["ndcg@10"] || 0).toFixed(3)}
+                  <Tag
+                    color={getScoreColor(selectedAnalysis.data["ndcg@10"] || 0)}
+                    className="font-semibold"
+                  >
+                    {safeToFixed(selectedAnalysis.data["ndcg@10"] || 0, 3)}
                   </Tag>
                   <Text className="text-sm text-gray-500 italic flex-1">
                     {selectedAnalysis.data.ndcg_reason}
@@ -303,8 +362,11 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                   <Text strong className="min-w-[80px] text-gray-600">
                     Precision:
                   </Text>
-                  <Tag color={getScoreColor(selectedAnalysis.data.precision || 0)} className="font-semibold">
-                    {(selectedAnalysis.data.precision || 0).toFixed(3)}
+                  <Tag
+                    color={getScoreColor(selectedAnalysis.data.precision || 0)}
+                    className="font-semibold"
+                  >
+                    {safeToFixed(selectedAnalysis.data.precision || 0, 3)}
                   </Tag>
                   <Text className="text-sm text-gray-500 italic flex-1">
                     {selectedAnalysis.data.precision_reason}
@@ -314,13 +376,66 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                   <Text strong className="min-w-[80px] text-gray-600">
                     Recall:
                   </Text>
-                  <Tag color={getScoreColor(selectedAnalysis.data.recall || 0)} className="font-semibold">
-                    {(selectedAnalysis.data.recall || 0).toFixed(3)}
+                  <Tag
+                    color={getScoreColor(selectedAnalysis.data.recall || 0)}
+                    className="font-semibold"
+                  >
+                    {safeToFixed(selectedAnalysis.data.recall || 0, 3)}
                   </Tag>
                   <Text className="text-sm text-gray-500 italic flex-1">
                     {selectedAnalysis.data.recall_reason}
                   </Text>
                 </div>
+
+                {/* 평가 방법 및 신뢰도 정보 */}
+                <div className="flex items-center gap-4 p-3 bg-blue-50 rounded border border-blue-200">
+                  <Text strong className="min-w-[80px] text-gray-600">
+                    평가 방법:
+                  </Text>
+                  {getEvaluationMethodBadge(
+                    selectedAnalysis.data.evaluation_method || "unknown",
+                    selectedAnalysis.data.confidence || 0
+                  )}
+                  <Text className="text-sm text-blue-600 font-medium">
+                    신뢰도:{" "}
+                    {safeToPercent(selectedAnalysis.data.confidence || 0, 0)}
+                  </Text>
+                </div>
+
+                {/* 개별 평가기 결과 (종합 평가인 경우) */}
+                {selectedAnalysis.data.evaluation_details &&
+                  selectedAnalysis.data.evaluation_details
+                    .individual_results && (
+                    <div className="p-3 bg-gray-50 rounded border">
+                      <Text strong className="text-gray-700 mb-2 block">
+                        개별 평가기 결과:
+                      </Text>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Object.entries(
+                          selectedAnalysis.data.evaluation_details
+                            .individual_results
+                        ).map(([name, result]) => (
+                          <div
+                            key={name}
+                            className="flex items-center justify-between p-2 bg-white rounded border text-sm"
+                          >
+                            <span className="font-medium">{name}:</span>
+                            <div className="flex items-center gap-2">
+                              <Tag
+                                size="small"
+                                color={getScoreColor(result.ndcg_10)}
+                              >
+                                {safeToFixed(result.ndcg_10, 2)}
+                              </Tag>
+                              <Text className="text-xs text-gray-500">
+                                ({(result.confidence * 100).toFixed(0)}%)
+                              </Text>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </Space>
             </Card>
 
@@ -328,14 +443,20 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
             selectedAnalysis.data.precision_issues.length > 0 ? (
               <Card>
                 <Title level={4} className="mb-4">
-                  <Badge count={selectedAnalysis.data.precision_issues.length} className="mr-2">
+                  <Badge
+                    count={selectedAnalysis.data.precision_issues.length}
+                    className="mr-2"
+                  >
                     <span>Precision 이슈 상품들</span>
                   </Badge>
                 </Title>
                 <Space direction="vertical" className="w-full" size="middle">
                   {selectedAnalysis.data.precision_issues.map(
                     (issue, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <div
+                        key={index}
+                        className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                      >
                         <div className="flex gap-4 items-start">
                           <div className="flex-shrink-0">
                             {issue.image_url && issue.image_url !== "N/A" ? (
@@ -350,7 +471,9 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                             ) : (
                               <div className="w-20 h-20 bg-gray-100 rounded border border-gray-200 flex flex-col items-center justify-center">
                                 <PictureOutlined className="text-gray-400 mb-1" />
-                                <Text className="text-xs text-gray-400">이미지 없음</Text>
+                                <Text className="text-xs text-gray-400">
+                                  이미지 없음
+                                </Text>
                               </div>
                             )}
                           </div>
@@ -382,7 +505,8 @@ export default function MetricsTable({ metrics, onScreenshotClick }) {
                 <div className="text-center py-8">
                   <div className="text-4xl mb-2">✓</div>
                   <Text className="text-gray-500">
-                    관련성 문제가 있는 상품이 없습니다. 모든 상품이 검색 키워드와 관련성이 높습니다.
+                    관련성 문제가 있는 상품이 없습니다. 모든 상품이 검색
+                    키워드와 관련성이 높습니다.
                   </Text>
                 </div>
               </Card>

@@ -61,5 +61,10 @@ class Config:
         """운영 환경 여부 확인"""
         return cls.ENVIRONMENT == "production"
 
+    @staticmethod
+    def get_individual_image_llm_enabled() -> bool:
+        """Individual Image LLM 평가기 활성화 여부 조회"""
+        return os.getenv("ENABLE_INDIVIDUAL_IMAGE_LLM", "false").lower() == "true"
+
 # 전역 설정 인스턴스
 config = Config() 

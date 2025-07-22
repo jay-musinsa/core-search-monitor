@@ -121,24 +121,21 @@ async def on_keyword_message(keyword: str):
     print(f"[파이프라인] 키워드 처리 시작: {keyword}")
 
     try:
-        # 1단계: API 데이터 수집 및 스크린샷 캡처 진행중
-        await broadcast_status(keyword, "API 데이터 수집 및 스크린샷 캡처 진행중", 1, 3)
-        await asyncio.sleep(0.5)
+        # progress_callback 정의
+        async def progress_callback(keyword: str, status: str, step: int, total_steps: int):
+            await broadcast_status(keyword, status, step, total_steps)
+            await asyncio.sleep(0.1)  # UI 업데이트를 위한 짧은 대기
 
-        # 새로운 메트릭 서비스로 키워드 처리
-        result = await metrics_manager.process_keyword(keyword)
+        # 새로운 메트릭 서비스로 키워드 처리 (progress_callback 포함)
+        result = await metrics_manager.process_keyword(keyword, progress_callback)
         
         if "error" in result:
             print(f"[파이프라인] 키워드 처리 실패: {result['error']}")
-            await broadcast_status(keyword, "처리 실패", 3, 3)
+            await broadcast_status(keyword, "처리 실패", 8, 8)
             return
 
-        # 2단계: 데이터 처리 완료
-        await broadcast_status(keyword, "데이터 처리 완료", 2, 3)
-        await asyncio.sleep(0.5)
-
-        # 3단계: 완료
-        await broadcast_status(keyword, "완료", 3, 3)
+        # 완료 상태 브로드캐스트
+        await broadcast_status(keyword, "완료", 8, 8)
         await asyncio.sleep(0.5)
 
         # 개별 메트릭 업데이트 브로드캐스트 - process_keyword 결과 직접 사용
@@ -149,17 +146,32 @@ async def on_keyword_message(keyword: str):
 
     except Exception as e:
         print(f"[파이프라인] 키워드 처리 중 오류: {e}")
-        await broadcast_status(keyword, "오류 발생", 3, 3)
+        await broadcast_status(keyword, "오류 발생", 8, 8)
 
     # broadcast_update 제거 - 메트릭 데이터가 지워지지 않도록
 
 @router.get("/api/metrics")
 async def get_metrics():
     """모든 메트릭 조회"""
-    return {
-        "metrics": {},  # 메트릭 저장하지 않으므로 빈 객체
-        "last_updated": datetime.now().isoformat()
-    }
+    try:
+        metrics_data = metrics_manager.get_metrics()
+        timestamp = metrics_manager.get_last_updated()
+        
+        # JSON 직렬화 테스트
+        import json
+        json.dumps(metrics_data)  # 직렬화 가능한지 테스트
+        
+        return {
+            "metrics": metrics_data,
+            "timestamp": timestamp
+        }
+    except Exception as e:
+        print(f"[API] 메트릭 조회 중 오류: {e}")
+        return {
+            "metrics": {},
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "error": "메트릭 데이터 처리 중 오류가 발생했습니다."
+        }
 
 @router.get("/api/metrics/summary")
 async def get_metrics_summary():
@@ -222,3 +234,40 @@ async def get_screenshot(platform: str, filename: str):
             status_code=404,
             content={"error": "스크린샷을 찾을 수 없습니다."}
         ) 
+
+# @router.get("/api/evaluator-config")
+# async def get_evaluator_config():
+#     """평가기 설정 조회"""
+#     try:
+#         configs = {}
+#         for name, config in metrics_manager.composite_evaluator.configs.items():
+#             configs[name] = {
+#                 "enabled": config.enabled,
+#                 "weight": config.weight,
+#                 "confidence_threshold": config.confidence_threshold
+#             }
+#         return {"success": True, "configs": configs}
+#     except Exception as e:
+#         print(f"[API] 평가기 설정 조회 실패: {e}")
+#         return {"success": False, "error": str(e)}
+
+# @router.post("/api/evaluator-config")
+# async def update_evaluator_config(request: dict):
+#     """평가기 설정 업데이트"""
+#     try:
+#         from app.core.evaluators.composite_evaluator import EvaluatorConfig
+#         
+#         configs = request.get("configs", {})
+#         for name, config_data in configs.items():
+#             if name in metrics_manager.composite_evaluator.configs:
+#                 new_config = EvaluatorConfig(
+#                     enabled=config_data.get("enabled", True),
+#                     weight=config_data.get("weight", 1.0),
+#                     confidence_threshold=config_data.get("confidence_threshold", 0.3)
+#                 )
+#                 metrics_manager.composite_evaluator.update_config(name, new_config)
+#         
+#         return {"success": True, "message": "평가기 설정이 업데이트되었습니다."}
+#     except Exception as e:
+#         print(f"[API] 평가기 설정 업데이트 실패: {e}")
+#         return {"success": False, "error": str(e)} 

@@ -22,7 +22,7 @@ import {
   RiseOutlined,
   ExclamationCircleOutlined,
 } from "@ant-design/icons";
-import { metricsApi } from "../../services/metricsApi";
+import { metricsApi, subscribeMetrics } from "../../services/metricsApi";
 import QualityMetricsCard from "./QualityMetricsCard";
 import TrendChart from "./TrendChart";
 import ComparisonTable from "./ComparisonTable";
@@ -44,8 +44,8 @@ const KeywordQualityDashboard = () => {
   const [filters, setFilters] = useState({
     platform: "all",
     category: "all",
-    dateRange: "7d",
-    threshold: 0.5,
+    dateRange: null, // 기본값 제거
+    threshold: null, // 기본값 제거
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,16 +58,25 @@ const KeywordQualityDashboard = () => {
       setLoading(true);
       setError(null);
 
-      const response = await metricsApi.getKeywordQuality({
+      // null 값인 필터 제거
+      const apiFilters = {
         platform: filters.platform,
         category: filters.category,
-        dateRange: filters.dateRange,
-        threshold: filters.threshold,
         sortBy: "ndcg_score",
         sortDirection: "desc",
         page: 1,
         limit: 1000,
-      });
+      };
+
+      // 선택적 필터만 추가
+      if (filters.dateRange) {
+        apiFilters.dateRange = filters.dateRange;
+      }
+      if (filters.threshold !== null) {
+        apiFilters.threshold = filters.threshold;
+      }
+
+      const response = await metricsApi.getKeywordQuality(apiFilters);
 
       if (response.success) {
         setQualityData(response.data);
@@ -103,10 +112,17 @@ const KeywordQualityDashboard = () => {
   // 트렌드 데이터 조회
   const fetchTrendData = useCallback(async () => {
     try {
-      const response = await metricsApi.getTrendData({
+      // null 값인 필터 제거
+      const apiFilters = {
         platform: filters.platform,
-        dateRange: filters.dateRange,
-      });
+      };
+
+      // 선택적 필터만 추가
+      if (filters.dateRange) {
+        apiFilters.dateRange = filters.dateRange;
+      }
+
+      const response = await metricsApi.getTrendData(apiFilters);
 
       if (response.success) {
         setTrendData(response.data);
@@ -120,10 +136,40 @@ const KeywordQualityDashboard = () => {
     }
   }, [filters]);
 
-  // 초기 데이터 로드
+  // 초기 데이터 로드 및 WebSocket 구독
   useEffect(() => {
     fetchQualityData();
     fetchTrendData();
+
+    // WebSocket 구독 - 평가 완료 시 자동 업데이트
+    const ws = subscribeMetrics((data) => {
+      console.log("[Dashboard] WebSocket 메시지 수신:", data);
+
+      if (data.type === "evaluation_complete") {
+        // 평가 완료 알림 - 대시보드 자동 업데이트
+        console.log(
+          "[Dashboard] 평가 완료 알림 수신:",
+          data.keyword,
+          data.summary
+        );
+
+        // 품질 데이터와 트렌드 데이터 모두 새로고침
+        setTimeout(() => {
+          fetchQualityData();
+          fetchTrendData();
+        }, 1000); // 1초 지연 후 업데이트 (DB 저장 완료 대기)
+
+        console.log(
+          `[Dashboard] ${data.keyword} 평가 완료 - 대시보드가 자동으로 업데이트되었습니다.`
+        );
+      }
+    });
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
   }, [fetchQualityData, fetchTrendData]);
 
   // 필터 변경 핸들러
@@ -212,7 +258,9 @@ const KeywordQualityDashboard = () => {
             <Title level={1} className="typo-heading-1 mb-2">
               품질 대시보드
             </Title>
-            <Text className="text-gray-600">검색 품질 모니터링 및 트렌드 분석</Text>
+            <Text className="text-gray-600">
+              검색 품질 모니터링 및 트렌드 분석
+            </Text>
           </div>
 
           <Space>
@@ -234,141 +282,151 @@ const KeywordQualityDashboard = () => {
       </div>
 
       <div className="p-8 max-w-[1600px] mx-auto">
+        {/* 에러 메시지 표시 */}
+        {error && (
+          <Alert
+            message="데이터 로드 실패"
+            description={
+              <div>
+                <p>{error}</p>
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={handleRefresh}
+                  style={{ marginTop: 8 }}
+                >
+                  다시 시도
+                </Button>
+              </div>
+            }
+            type="error"
+            showIcon
+            style={{ marginBottom: 16 }}
+            closable
+            onClose={() => setError(null)}
+          />
+        )}
 
-      {/* 에러 메시지 표시 */}
-      {error && (
-        <Alert
-          message="데이터 로드 실패"
-          description={
-            <div>
-              <p>{error}</p>
-              <Button
-                type="primary"
-                size="small"
-                onClick={handleRefresh}
-                style={{ marginTop: 8 }}
-              >
-                다시 시도
-              </Button>
-            </div>
-          }
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-          closable
-          onClose={() => setError(null)}
-        />
-      )}
+        {/* 로딩 상태 표시 */}
+        {loading && (
+          <div style={{ textAlign: "center", marginBottom: 16 }}>
+            <Spin size="large" tip="로딩중..." />
+          </div>
+        )}
 
-      {/* 로딩 상태 표시 */}
-      {loading && (
-        <div style={{ textAlign: "center", marginBottom: 16 }}>
-          <Spin size="large" tip="로딩중..." />
-        </div>
-      )}
-
-      {/* 메트릭 카드 섹션 */}
-      {!loading && !error && (
-        <div className="mb-8">
-          <Title level={3} className="typo-heading-3 mb-4">
-            주요 지표
-          </Title>
-          <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Card>
-                <Statistic
-                  title="전체 키워드"
-                  value={summaryStats.totalKeywords}
-                  precision={0}
-                  valueStyle={{ color: "#1677ff" }}
-                  prefix={<DashboardOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Card>
-                <Statistic
-                  title="평균 NDCG 점수"
-                  value={summaryStats.avgNdcgScore}
-                  precision={3}
-                  valueStyle={{ color: "#52c41a" }}
-                  prefix={<RiseOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Card>
-                <Statistic
-                  title="평균 정확도"
-                  value={summaryStats.avgPrecision}
-                  precision={3}
-                  valueStyle={{ color: "#1677ff" }}
-                  prefix={<RiseOutlined />}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8} lg={6}>
-              <Card>
-                <Statistic
-                  title="이상치 발견"
-                  value={summaryStats.anomalyCount}
-                  precision={0}
-                  valueStyle={{ color: "#ff4d4f" }}
-                  prefix={<ExclamationCircleOutlined />}
-                />
-              </Card>
-            </Col>
-          </Row>
-        </div>
-      )}
-
-      {/* 트렌드 차트 및 키워드 테이블 섹션 */}
-      {!loading && !error && (
-        <>
-          {/* 트렌드 차트 섹션 */}
-          <Card className="mb-8">
+        {/* 메트릭 카드 섹션 */}
+        {!loading && !error && (
+          <div className="mb-8">
             <Title level={3} className="typo-heading-3 mb-4">
-              품질 트렌드
+              주요 지표
             </Title>
-            {trendData && trendData.length > 0 ? (
-              <TrendChart
-                data={trendData}
-                dateRange={filters.dateRange}
-                platform={filters.platform}
-              />
-            ) : (
-              <Empty description="트렌드 데이터가 없습니다" />
-            )}
-          </Card>
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={12} md={8} lg={6}>
+                <Card>
+                  <Statistic
+                    title="전체 키워드"
+                    value={summaryStats.totalKeywords}
+                    precision={0}
+                    valueStyle={{ color: "#1677ff" }}
+                    prefix={<DashboardOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={6}>
+                <Card>
+                  <Statistic
+                    title="평균 NDCG 점수"
+                    value={summaryStats.avgNdcgScore}
+                    precision={3}
+                    valueStyle={{ color: "#52c41a" }}
+                    prefix={<RiseOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={6}>
+                <Card>
+                  <Statistic
+                    title="평균 정확도"
+                    value={summaryStats.avgPrecision}
+                    precision={3}
+                    valueStyle={{ color: "#1677ff" }}
+                    prefix={<RiseOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={6}>
+                <Card>
+                  <Statistic
+                    title="이상치 발견"
+                    value={summaryStats.anomalyCount}
+                    precision={0}
+                    valueStyle={{ color: "#ff4d4f" }}
+                    prefix={<ExclamationCircleOutlined />}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </div>
+        )}
 
-          {/* 키워드 테이블 섹션 */}
-          <Card>
-            <div className="flex justify-between items-center mb-4">
-              <Title level={3} className="typo-heading-3 mb-0">
-                키워드 품질 상세
+        {/* 트렌드 차트 및 키워드 테이블 섹션 */}
+        {!loading && !error && (
+          <>
+            {/* 트렌드 차트 섹션 */}
+            <Card className="mb-8">
+              <Title level={3} className="typo-heading-3 mb-4">
+                품질 트렌드
               </Title>
-            </div>
-            <div className="mb-4">
-              <Text className="text-sm text-gray-600">
-                총 {summaryStats.totalKeywords}개의 키워드
-              </Text>
-            </div>
-            <Divider className="my-4" />
-            {qualityData && qualityData.length > 0 ? (
-              <ComparisonTable
-                data={qualityData}
-                onKeywordSelect={handleKeywordSelect}
-                getQualityGrade={getQualityGrade}
-                filters={filters}
-              />
-            ) : (
-              <Empty description="키워드 데이터가 없습니다" />
-            )}
-          </Card>
-        </>
-      )}
+              {trendData && trendData.length > 0 ? (
+                <TrendChart
+                  data={trendData}
+                  dateRange={filters.dateRange}
+                  platform={filters.platform}
+                />
+              ) : (
+                <Empty description="트렌드 데이터가 없습니다" />
+              )}
+            </Card>
 
-      {/* 필터 드로어 */}
+            {/* 키워드 테이블 섹션 */}
+            <Card>
+              <div className="flex justify-between items-center mb-4">
+                <Title level={3} className="typo-heading-3 mb-0">
+                  키워드 품질 상세
+                </Title>
+              </div>
+              <div className="mb-4">
+                <Text className="text-sm text-gray-600">
+                  총 {summaryStats.totalKeywords}개의 키워드
+                </Text>
+              </div>
+
+              {/* 인라인 필터 UI */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <FilterPanel
+                  filters={filters}
+                  onFilterChange={handleFilterChange}
+                  collapsed={false}
+                  inline={true}
+                />
+              </div>
+
+              <Divider className="my-4" />
+              {qualityData && qualityData.length > 0 ? (
+                <ComparisonTable
+                  data={qualityData}
+                  onKeywordSelect={handleKeywordSelect}
+                  getQualityGrade={getQualityGrade}
+                  filters={filters}
+                />
+              ) : (
+                <Empty description="키워드 데이터가 없습니다" />
+              )}
+            </Card>
+          </>
+        )}
+
+        {/* 필터 드로어 */}
         {/* 필터 드로어 */}
         <Drawer
           title="필터 설정"

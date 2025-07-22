@@ -18,9 +18,11 @@ app.add_middleware(
 # 라우터 등록
 from app.api.metrics import router as metrics_router
 from app.api.quality_dashboard import router as quality_router
+from app.api.evaluator_config import router as evaluator_config_router
 
 app.include_router(metrics_router)
 app.include_router(quality_router)
+app.include_router(evaluator_config_router)
 
 # 헬스체크 엔드포인트
 @app.get("/health")

@@ -15,11 +15,15 @@ celery==5.4.0
 flower==2.0.1
 
 
-# 머신러닝 & 데이터 처리
+# 머신러닝 & 데이터 처리 (다중 평가 시스템)
 sentence-transformers==4.1.0
 numpy==2.0.2
 pandas==2.2.3
 scikit-learn==1.6.1
+
+# 선택적 의존성 (CLIP 모델 사용시)
+# torch>=1.9.0
+# clip-by-openai==1.0
 
 # 개발 도구 (테스트 & 코드 품질)
 pytest==8.3.5

@@ -9,6 +9,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { safeToFixed, safeNumber } from "../../utils/formatters";
 import { Typography, Empty } from "antd";
 
 const { Title, Text } = Typography;
@@ -52,7 +53,7 @@ const TrendChart = ({ data = [], dateRange = "7d", platform = "all" }) => {
               className="tooltip-item"
               style={{ color: entry.color }}
             >
-              {`${metricLabels[entry.dataKey]}: ${entry.value.toFixed(3)}`}
+              {`${metricLabels[entry.dataKey]}: ${safeToFixed(entry.value, 3)}`}
             </p>
           ))}
         </div>
@@ -78,7 +79,9 @@ const TrendChart = ({ data = [], dateRange = "7d", platform = "all" }) => {
     <div>
       <div className="mb-4">
         <div className="flex justify-between items-center">
-          <Title level={4} className="mb-0">품질 트렌드</Title>
+          <Title level={4} className="mb-0">
+            품질 트렌드
+          </Title>
           <div className="text-sm text-gray-600">
             <Text>
               기간:{" "}
